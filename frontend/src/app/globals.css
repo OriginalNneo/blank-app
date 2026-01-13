@@ -2,11 +2,11 @@
 
 :root {
   /* Theme variables - loaded from theme_config.json */
-  --primary-color: #00C2FF;
-  --background-color: #F5F7FA;
-  --secondary-background-color: #FFFFFF;
+  --primary-color: #F08C21;
+  --background-color: #F2D88F;
+  --secondary-background-color: #6698CC;
   --text-color: #1A202C;
-  --accent-color: #FF6B6B;
+  --accent-color: #B4B534;
   --font-family: Poppins, Arial, Helvetica, sans-serif;
 
   /* Legacy variables for compatibility */

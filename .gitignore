@@ -32,6 +32,8 @@ streamlit.log
 # Data files (if any sensitive data)
 *.json
 !requirements.txt
+# Explicitly ignore config files with sensitive data
+config.json
 
 # Excel files (generated files)
 *.xlsx
@@ -42,3 +44,5 @@ Results/
 # API keys and credentials
 *_api.json
 *tgyn-admin*.json
+# Explicitly ignore Google service account file
+tgyn-admin-1452dbad90f6.json

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -20,9 +20,30 @@ interface DashboardLayoutProps {
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [topBarVisible, setTopBarVisible] = useState(true);
+  const [lastScrollY, setLastScrollY] = useState(0);
   const { user, logout } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      
+      if (currentScrollY > lastScrollY && currentScrollY > 100) {
+        // Scrolling down - hide top bar
+        setTopBarVisible(false);
+      } else if (currentScrollY < lastScrollY) {
+        // Scrolling up - show top bar
+        setTopBarVisible(true);
+      }
+      
+      setLastScrollY(currentScrollY);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [lastScrollY]);
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
@@ -52,9 +73,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       }`}>
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className={`flex items-center justify-center h-16 px-4 bg-gradient-to-r from-cyan-500 to-blue-600 ${
+          <div className={`flex items-center justify-center h-16 px-4 ${
             sidebarCollapsed ? 'lg:justify-center' : 'lg:justify-start'
-          }`}>
+          }`} style={{ backgroundColor: '#6698CC' }}>
             <h1 className={`font-bold text-white transition-all duration-300 ${
               sidebarCollapsed ? 'text-sm lg:text-xs' : 'text-xl'
             }`}>
@@ -67,17 +88,23 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             {navigation.map((item) => {
               const isActive = pathname === item.href;
               return (
-                <Link
+                <button
                   key={item.name}
-                  href={item.href}
-                  className={`flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 ${
+                  onClick={() => {
+                    // Navigate to the page
+                    router.push(item.href);
+                    // Close mobile sidebar
+                    setSidebarOpen(false);
+                    // Collapse desktop sidebar
+                    setSidebarCollapsed(true);
+                  }}
+                  className={`flex items-center w-full px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 ${
                     sidebarCollapsed ? 'lg:justify-center lg:px-2' : ''
                   } ${
                     isActive
                       ? 'bg-cyan-50 text-cyan-700 border-r-2 border-cyan-500'
                       : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                   }`}
-                  onClick={() => setSidebarOpen(false)}
                   title={sidebarCollapsed ? item.name : undefined}
                 >
                   <item.icon className={`h-5 w-5 ${sidebarCollapsed ? 'lg:mr-0' : 'mr-3'}`} />
@@ -86,7 +113,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   }`}>
                     {item.name}
                   </span>
-                </Link>
+                </button>
               );
             })}
           </nav>
@@ -147,11 +174,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       )}
 
       {/* Main content */}
-      <div className={`min-h-screen bg-gray-50 transition-all duration-300 ${
+      <div className={`min-h-screen bg-white transition-all duration-300 ${
         sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'
       }`}>
         {/* Top bar */}
-        <div className="sticky top-0 z-10 bg-white border-b border-gray-200">
+        <div className={`sticky top-0 z-10 bg-white border-b border-gray-200 transition-transform duration-300 ${
+          topBarVisible ? 'translate-y-0' : '-translate-y-full'
+        }`}>
           <div className="flex items-center justify-between px-4 py-3">
             <div className="flex items-center">
               {/* Mobile menu button */}

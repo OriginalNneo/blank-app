@@ -199,50 +199,50 @@ export default function BudgetPlannerPage() {
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Budget Planner</h1>
-            <p className="text-gray-600">Create professional event budget templates</p>
+            <h1 className="text-3xl font-bold text-black mb-2">Budget Planner</h1>
+            <p className="text-black opacity-90">Create professional event budget templates</p>
           </div>
 
           {/* Form */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-6">Event Details</h2>
+          <div className="rounded-lg shadow-sm border border-gray-200 p-6 mb-6" style={{ backgroundColor: '#6698CC' }}>
+            <h2 className="text-xl font-semibold text-white mb-6">Event Details</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Event Name *</label>
+                <label className="block text-sm font-medium text-white mb-2">Event Name *</label>
                 <input
                   type="text"
                   value={eventName}
                   onChange={(e) => setEventName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-cyan-500 focus:border-cyan-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-cyan-500 focus:border-cyan-500 text-black bg-white placeholder-gray-500"
                   placeholder="Enter event name"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Event Date</label>
+                <label className="block text-sm font-medium text-white mb-2">Event Date</label>
                 <input
                   type="date"
                   value={eventDate}
                   onChange={(e) => setEventDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-cyan-500 focus:border-cyan-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-cyan-500 focus:border-cyan-500 text-black bg-white placeholder-gray-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Participants</label>
+                <label className="block text-sm font-medium text-white mb-2">Participants</label>
                 <input
                   type="number"
                   value={participants}
                   onChange={(e) => setParticipants(Number(e.target.value))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-cyan-500 focus:border-cyan-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-cyan-500 focus:border-cyan-500 text-black bg-white placeholder-gray-500"
                   min="0"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Volunteers</label>
+                <label className="block text-sm font-medium text-white mb-2">Volunteers</label>
                 <input
                   type="number"
                   value={volunteers}
                   onChange={(e) => setVolunteers(Number(e.target.value))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-cyan-500 focus:border-cyan-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-cyan-500 focus:border-cyan-500 text-black bg-white placeholder-gray-500"
                   min="0"
                 />
               </div>
@@ -250,42 +250,42 @@ export default function BudgetPlannerPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Prepared By</label>
+                <label className="block text-sm font-medium text-white mb-2">Prepared By</label>
                 <input
                   type="text"
                   value={preparedBy}
                   onChange={(e) => setPreparedBy(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-cyan-500 focus:border-cyan-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-cyan-500 focus:border-cyan-500 text-black bg-white placeholder-gray-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Designation</label>
+                <label className="block text-sm font-medium text-white mb-2">Designation</label>
                 <input
                   type="text"
                   value={designation}
                   onChange={(e) => setDesignation(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-cyan-500 focus:border-cyan-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-cyan-500 focus:border-cyan-500 text-black bg-white placeholder-gray-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Vetted By</label>
+                <label className="block text-sm font-medium text-white mb-2">Vetted By</label>
                 <input
                   type="text"
                   value={vettedBy}
                   onChange={(e) => setVettedBy(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-cyan-500 focus:border-cyan-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-cyan-500 focus:border-cyan-500 text-black bg-white placeholder-gray-500"
                 />
               </div>
             </div>
           </div>
 
           {/* Income Table */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+          <div className="rounded-lg shadow-sm border border-gray-200 p-6 mb-6" style={{ backgroundColor: '#6698CC' }}>
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold text-gray-900">Income</h2>
+              <h2 className="text-xl font-semibold text-white">Income</h2>
               <button
                 onClick={addIncomeItem}
-                className="inline-flex items-center px-4 py-2 bg-cyan-600 text-white text-sm font-medium rounded-md hover:bg-cyan-700"
+                className="inline-flex items-center px-4 py-2 text-white text-sm font-medium rounded-md hover:opacity-90" style={{ backgroundColor: '#F08C21' }}
               >
                 <PlusIcon className="h-4 w-4 mr-2" />
                 Add Item
@@ -294,13 +294,13 @@ export default function BudgetPlannerPage() {
 
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+                <thead style={{ backgroundColor: '#B4B534' }}>
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">$ per unit</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">$ (Total)</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Description</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">$ per unit</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Qty</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">$ (Total)</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -345,9 +345,9 @@ export default function BudgetPlannerPage() {
                       </td>
                     </tr>
                   ))}
-                  <tr className="bg-gray-50">
-                    <td colSpan={3} className="px-6 py-4 text-sm font-medium text-gray-900">Total Income</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
+                  <tr style={{ backgroundColor: '#B4B534' }}>
+                    <td colSpan={3} className="px-6 py-4 text-sm font-medium text-white">Total Income</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-white">
                       ${calculateTotal(incomeItems).toFixed(2)}
                     </td>
                     <td></td>
@@ -358,12 +358,12 @@ export default function BudgetPlannerPage() {
           </div>
 
           {/* Expense Table */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+          <div className="rounded-lg shadow-sm border border-gray-200 p-6 mb-6" style={{ backgroundColor: '#6698CC' }}>
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold text-gray-900">Expenditure</h2>
+              <h2 className="text-xl font-semibold text-white">Expenditure</h2>
               <button
                 onClick={addExpenseItem}
-                className="inline-flex items-center px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700"
+                className="inline-flex items-center px-4 py-2 text-white text-sm font-medium rounded-md hover:opacity-90" style={{ backgroundColor: '#F08C21' }}
               >
                 <PlusIcon className="h-4 w-4 mr-2" />
                 Add Item
@@ -372,13 +372,13 @@ export default function BudgetPlannerPage() {
 
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+                <thead style={{ backgroundColor: '#B4B534' }}>
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">$ per unit</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">$ (Total)</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Description</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">$ per unit</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Qty</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">$ (Total)</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -423,9 +423,9 @@ export default function BudgetPlannerPage() {
                       </td>
                     </tr>
                   ))}
-                  <tr className="bg-gray-50">
-                    <td colSpan={3} className="px-6 py-4 text-sm font-medium text-gray-900">Total Expenditure</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
+                  <tr style={{ backgroundColor: '#B4B534' }}>
+                    <td colSpan={3} className="px-6 py-4 text-sm font-medium text-white">Total Expenditure</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-white">
                       ${calculateTotal(expenseItems).toFixed(2)}
                     </td>
                     <td></td>
@@ -436,8 +436,8 @@ export default function BudgetPlannerPage() {
           </div>
 
           {/* Summary */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Summary</h2>
+          <div className="rounded-lg shadow-sm border border-gray-200 p-6 mb-6" style={{ backgroundColor: '#6698CC' }}>
+            <h2 className="text-xl font-semibold text-white mb-4">Summary</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="text-center p-4 bg-green-50 rounded-lg">
                 <p className="text-sm text-green-600 font-medium">Total Income</p>
@@ -462,14 +462,14 @@ export default function BudgetPlannerPage() {
           <div className="flex justify-end space-x-4">
             <button
               onClick={handlePreview}
-              className="inline-flex items-center px-6 py-3 bg-gray-600 text-white text-sm font-medium rounded-md hover:bg-gray-700"
+              className="inline-flex items-center px-6 py-3 text-white text-sm font-medium rounded-md hover:opacity-90" style={{ backgroundColor: '#F08C21' }}
             >
               <EyeIcon className="h-4 w-4 mr-2" />
               Preview
             </button>
             <button
               onClick={handleSendToTelegram}
-              className="inline-flex items-center px-6 py-3 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700"
+              className="inline-flex items-center px-6 py-3 text-white text-sm font-medium rounded-md hover:opacity-90" style={{ backgroundColor: '#F08C21' }}
             >
               <DocumentTextIcon className="h-4 w-4 mr-2" />
               Send to Telegram
@@ -492,7 +492,7 @@ export default function BudgetPlannerPage() {
           <div className="bg-white rounded-lg max-w-2xl w-full mx-4 max-h-96 overflow-y-auto">
             <div className="p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Budget Preview</h3>
+                <h3 className="text-lg font-semibold text-white">Budget Preview</h3>
                 <button
                   onClick={() => setShowPreview(false)}
                   className="text-gray-400 hover:text-gray-600"
