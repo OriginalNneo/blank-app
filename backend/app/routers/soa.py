@@ -1,0 +1,158 @@
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi.responses import StreamingResponse
+from typing import List
+import io
+
+from app.services.soa_service import SOAService, SOARequest
+from app.services.receipt_service import ReceiptService
+from app.routers.auth import get_current_user_dependency
+from app.utils.config import get_telegram_token, get_telegram_group_id
+
+router = APIRouter()
+receipt_service = ReceiptService()
+
+@router.post("/generate")
+async def generate_soa(
+    request: SOARequest,
+    current_user: dict = Depends(get_current_user_dependency)
+):
+    """Generate SOA Excel file"""
+    try:
+        excel_data = SOAService.generate_soa_excel(request)
+        filename = f"{request.event_name}_SOA.xlsx"
+
+        return StreamingResponse(
+            io.BytesIO(excel_data),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating SOA: {str(e)}")
+
+@router.post("/preview")
+async def preview_soa(
+    request: SOARequest,
+    current_user: dict = Depends(get_current_user_dependency)
+):
+    """Generate SOA and return data for preview"""
+    try:
+        import pandas as pd
+
+        income_df = pd.DataFrame(request.income_items)
+        expense_df = pd.DataFrame(request.expense_items)
+
+        # Calculate totals
+        if not income_df.empty:
+            income_df = SOAService.calculate_soa_totals(income_df)
+        if not expense_df.empty:
+            expense_df = SOAService.calculate_soa_totals(expense_df)
+
+        # Calculate summary
+        income_actual = income_df['Actual ($)'].sum() if not income_df.empty else 0
+        expense_actual = expense_df['Actual ($)'].sum() if not expense_df.empty else 0
+        net_actual = income_actual - expense_actual
+
+        return {
+            "income_total": income_actual,
+            "expense_total": expense_actual,
+            "net_amount": net_actual,
+            "income_items": income_df.to_dict('records') if not income_df.empty else [],
+            "expense_items": expense_df.to_dict('records') if not expense_df.empty else []
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error calculating SOA preview: {str(e)}")
+
+@router.post("/process-receipts")
+async def process_receipts(
+    files: List[UploadFile] = File(...),
+    current_user: dict = Depends(get_current_user_dependency)
+):
+    """Process multiple receipt images and extract items"""
+    try:
+        processed_receipts = []
+
+        for file in files:
+            if not file.filename.lower().endswith(('.png', '.jpg', '.jpeg')):
+                continue
+
+            processed_receipt = receipt_service.process_receipt_image(file)
+            if processed_receipt:
+                processed_receipts.append(processed_receipt)
+
+        if not processed_receipts:
+            raise HTTPException(status_code=400, detail="No receipts could be processed")
+
+        # Extract and categorize items
+        categorized_items = receipt_service.extract_items_from_receipts(processed_receipts)
+
+        return {
+            "processed_receipts": len(processed_receipts),
+            "income_items": categorized_items["income"],
+            "expenditure_items": categorized_items["expenditure"],
+            "receipts_data": [receipt.dict() for receipt in processed_receipts]
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing receipts: {str(e)}")
+
+@router.post("/telegram-send")
+async def send_to_telegram(
+    request: SOARequest,
+    current_user: dict = Depends(get_current_user_dependency)
+):
+    """Generate SOA and send to Telegram"""
+    try:
+        import requests
+        import json
+        import os
+        from decouple import config
+
+        # Generate Excel file
+        excel_data = SOAService.generate_soa_excel(request)
+        filename = f"{request.event_name}_SOA.xlsx"
+
+        # Get Telegram credentials from configuration
+        token = get_telegram_token()
+        group_id = get_telegram_group_id()
+
+        if not token or not group_id:
+            raise ValueError("Telegram credentials not found in configuration")
+
+        # Send document
+        url = f"https://api.telegram.org/bot{token}/sendDocument"
+        files = {'document': (filename, io.BytesIO(excel_data), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')}
+        data = {
+            'chat_id': group_id,
+            'caption': f"📄 {filename} - Ready for approval"
+        }
+
+        response = requests.post(url, files=files, data=data, timeout=30)
+        doc_result = response.json()
+
+        if not doc_result.get('ok'):
+            raise HTTPException(status_code=500, detail=f"Document send failed: {doc_result.get('description')}")
+
+        # Send poll
+        poll_url = f"https://api.telegram.org/bot{token}/sendPoll"
+        poll_data = {
+            'chat_id': group_id,
+            'question': f"Approval for {request.event_name}",
+            'options': '["Yes ✅", "No ❌"]',
+            'is_anonymous': False,
+            'allows_multiple_answers': False
+        }
+
+        poll_response = requests.post(poll_url, data=poll_data, timeout=30)
+        poll_result = poll_response.json()
+
+        if not poll_result.get('ok'):
+            raise HTTPException(status_code=500, detail=f"Poll creation failed: {poll_result.get('description')}")
+
+        return {
+            "success": True,
+            "message": "SOA document and approval poll sent to Telegram successfully",
+            "filename": filename
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error sending to Telegram: {str(e)}")

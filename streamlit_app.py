@@ -10,6 +10,38 @@ from google.oauth2.service_account import Credentials
 import google.generativeai as genai
 from PIL import Image
 import json
+import toml
+import os
+
+# --- Load Theme Configuration ---
+def load_theme_config():
+    """Load theme colors from config.toml"""
+    config_path = os.path.join(os.path.dirname(__file__), '.streamlit', 'config.toml')
+    try:
+        with open(config_path, 'r') as f:
+            config = toml.load(f)
+        theme = config.get('theme', {})
+        return {
+            'primaryColor': theme.get('primaryColor', '#00C2FF'),
+            'backgroundColor': theme.get('backgroundColor', '#F5F7FA'),
+            'secondaryBackgroundColor': theme.get('secondaryBackgroundColor', '#FFFFFF'),
+            'textColor': theme.get('textColor', '#1A202C'),
+            'accentColor': theme.get('accentColor', '#FF6B6B'),
+            'font': theme.get('font', 'Poppins')
+        }
+    except Exception as e:
+        # Fallback to default colors if config can't be loaded
+        return {
+            'primaryColor': '#00C2FF',
+            'backgroundColor': '#F5F7FA',
+            'secondaryBackgroundColor': '#FFFFFF',
+            'textColor': '#1A202C',
+            'accentColor': '#FF6B6B',
+            'font': 'Poppins'
+        }
+
+# Load theme colors
+theme_colors = load_theme_config()
 
 # --- Page Configuration ---
 st.set_page_config(page_title="Teck Ghee Admin Portal", layout="wide", initial_sidebar_state="collapsed")
@@ -317,7 +349,7 @@ st.markdown(f"""
             top: 0;
             left: 0;
             width: 100%;
-            background-color: #2A0944; /* Theme Background Purple */
+            background-color: {theme_colors['backgroundColor']}; /* Theme Background */
             color: white;
             padding: 1rem 2rem;
             z-index: 999999;
@@ -373,9 +405,9 @@ st.markdown(f"""
 
         .nav-link.active {{
             color: white;
-            background: linear-gradient(135deg, #D0BCFF 0%, #3B185F 100%);
+            background: linear-gradient(135deg, {theme_colors['primaryColor']} 0%, #1976D2 100%);
             font-weight: 600;
-            box-shadow: 0 2px 8px rgba(208, 188, 255, 0.4);
+            box-shadow: 0 2px 8px rgba(0, 194, 255, 0.4);
         }}
 
         /* Adjust main content to start below the fixed header */
@@ -454,28 +486,27 @@ with col_nav:
             st.rerun()
 
 # Apply conditional styling after buttons are rendered
-if budget_active:
-    st.markdown("""
-        <style>
-            button[data-testid*="nav_budget"] {
-                color: white !important;
-                background: linear-gradient(135deg, #D0BCFF 0%, #3B185F 100%) !important;
-                font-weight: 600 !important;
-                box-shadow: 0 2px 8px rgba(208, 188, 255, 0.4) !important;
-            }
-        </style>
-    """, unsafe_allow_html=True)
-elif soa_active:
-    st.markdown("""
-        <style>
-            button[data-testid*="nav_soa"] {
-                color: white !important;
-                background: linear-gradient(135deg, #D0BCFF 0%, #3B185F 100%) !important;
-                font-weight: 600 !important;
-                box-shadow: 0 2px 8px rgba(208, 188, 255, 0.4) !important;
-            }
-        </style>
-    """, unsafe_allow_html=True)
+# Navigation button styling
+st.markdown(f"""
+    <style>
+        /* Budget Planner and SOA buttons - Primary Color */
+        button[data-testid*="nav_budget"],
+        button[data-testid*="nav_soa"] {{
+            color: white !important;
+            background: linear-gradient(135deg, {theme_colors['primaryColor']} 0%, #1976D2 100%) !important;
+            font-weight: 600 !important;
+            box-shadow: 0 2px 8px rgba(0, 194, 255, 0.4) !important;
+        }}
+
+        /* Logout button - Accent Color */
+        button[data-testid*="logout"] {{
+            color: white !important;
+            background: linear-gradient(135deg, {theme_colors['accentColor']} 0%, #D32F2F 100%) !important;
+            font-weight: 600 !important;
+            box-shadow: 0 2px 8px rgba(255, 107, 107, 0.4) !important;
+        }}
+    </style>
+""", unsafe_allow_html=True)
 
 # Simple page navigation handling
 # This is now handled directly by the Streamlit buttons in the header
@@ -978,8 +1009,75 @@ def generate_soa_excel(event_name, event_date, venue, act_code, inc_df, exp_df, 
 page = st.session_state["page"]
 
 if page == "Budget Planner":
-    st.title("💰 Event Budget Planner")
-    
+    # Custom styled title box with accent color
+    st.markdown("""
+    <div style="
+        background-color: {theme_colors['accentColor']};
+        color: white;
+        padding: 20px;
+        border-radius: 15px;
+        text-align: center;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        font-size: 2.5em;
+        font-weight: bold;
+        font-family: 'Poppins', sans-serif;
+    ">
+        💰 Event Budget Planner
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Liquid Glass Effect CSS for form containers
+    st.markdown(f"""
+    <style>
+    /* Liquid Glass Effect for Streamlit Containers */
+    .stVerticalBlock, .stHorizontalBlock, .stColumn {{
+        background: rgba(255, 255, 255, 0.1) !important;
+        backdrop-filter: blur(20px) !important;
+        -webkit-backdrop-filter: blur(20px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        border-radius: 20px !important;
+        box-shadow:
+            0 8px 32px rgba(0, 0, 0, 0.1),
+            inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+        padding: 20px !important;
+        margin: 10px 0 !important;
+        transition: all 0.3s ease !important;
+    }}
+
+    .stVerticalBlock:hover, .stHorizontalBlock:hover, .stColumn:hover {{
+        background: rgba(255, 255, 255, 0.15) !important;
+        transform: translateY(-2px) !important;
+        box-shadow:
+            0 12px 40px rgba(0, 0, 0, 0.15),
+            inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+    }}
+
+    /* Enhanced input fields within glass containers */
+    .stTextInput, .stNumberInput, .stDateInput {{
+        background: rgba(255, 255, 255, 0.1) !important;
+        border: 1px solid rgba(255, 255, 255, 0.3) !important;
+        border-radius: 12px !important;
+        backdrop-filter: blur(10px) !important;
+        -webkit-backdrop-filter: blur(10px) !important;
+        transition: all 0.3s ease !important;
+    }}
+
+    .stTextInput:hover, .stNumberInput:hover, .stDateInput:hover {{
+        background: rgba(255, 255, 255, 0.2) !important;
+        border-color: {theme_colors['primaryColor']} !important;
+        box-shadow: 0 0 20px rgba(0, 194, 255, 0.1) !important;
+    }}
+
+    /* Label styling for glass effect */
+    .stTextInput label, .stNumberInput label, .stDateInput label {{
+        color: {theme_colors['textColor']} !important;
+        font-weight: 500 !important;
+        backdrop-filter: blur(5px) !important;
+    }}
+    </style>
+    """, unsafe_allow_html=True)
+
     with st.container():
         c1, c2 = st.columns(2)
         with c1:
@@ -1045,7 +1143,58 @@ if page == "Budget Planner":
 
 elif page == "Statement of Accounts (SOA)":
     st.title("📄 Statement of Accounts (SOA)")
-    
+
+    # Liquid Glass Effect CSS for SOA form containers
+    st.markdown(f"""
+    <style>
+    /* Liquid Glass Effect for Streamlit Containers */
+    .stVerticalBlock, .stHorizontalBlock, .stColumn {{
+        background: rgba(255, 255, 255, 0.1) !important;
+        backdrop-filter: blur(20px) !important;
+        -webkit-backdrop-filter: blur(20px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        border-radius: 20px !important;
+        box-shadow:
+            0 8px 32px rgba(0, 0, 0, 0.1),
+            inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+        padding: 20px !important;
+        margin: 10px 0 !important;
+        transition: all 0.3s ease !important;
+    }}
+
+    .stVerticalBlock:hover, .stHorizontalBlock:hover, .stColumn:hover {{
+        background: rgba(255, 255, 255, 0.15) !important;
+        transform: translateY(-2px) !important;
+        box-shadow:
+            0 12px 40px rgba(0, 0, 0, 0.15),
+            inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+    }}
+
+    /* Enhanced input fields within glass containers */
+    .stTextInput, .stNumberInput, .stDateInput {{
+        background: rgba(255, 255, 255, 0.1) !important;
+        border: 1px solid rgba(255, 255, 255, 0.3) !important;
+        border-radius: 12px !important;
+        backdrop-filter: blur(10px) !important;
+        -webkit-backdrop-filter: blur(10px) !important;
+        transition: all 0.3s ease !important;
+    }}
+
+    .stTextInput:hover, .stNumberInput:hover, .stDateInput:hover {{
+        background: rgba(255, 255, 255, 0.2) !important;
+        border-color: {theme_colors['primaryColor']} !important;
+        box-shadow: 0 0 20px rgba(0, 194, 255, 0.1) !important;
+    }}
+
+    /* Label styling for glass effect */
+    .stTextInput label, .stNumberInput label, .stDateInput label {{
+        color: {theme_colors['textColor']} !important;
+        font-weight: 500 !important;
+        backdrop-filter: blur(5px) !important;
+    }}
+    </style>
+    """, unsafe_allow_html=True)
+
     with st.container():
         c1, c2 = st.columns(2)
         with c1:
@@ -1062,8 +1211,8 @@ elif page == "Statement of Accounts (SOA)":
     # Create two distinct columns for Income and Expenditure
     st.markdown("""
     <style>
-    .income-column { background-color: rgba(208, 188, 255, 0.1); padding: 10px; border-radius: 10px; border-left: 5px solid #D0BCFF; }
-    .expense-column { background-color: rgba(59, 24, 95, 0.1); padding: 10px; border-radius: 10px; border-left: 5px solid #3B185F; }
+    .income-column {{ background-color: rgba(0, 194, 255, 0.1); padding: 10px; border-radius: 10px; border-left: 5px solid {theme_colors['primaryColor']}; }}
+    .expense-column {{ background-color: rgba(255, 107, 107, 0.1); padding: 10px; border-radius: 10px; border-left: 5px solid {theme_colors['accentColor']}; }}
     </style>
     """, unsafe_allow_html=True)
 

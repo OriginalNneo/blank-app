@@ -3,3 +3,7 @@ pandas
 xlsxwriter
 google-generativeai
 Pillow
+gspread
+google-auth
+requests
+toml

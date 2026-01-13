@@ -1,0 +1,18 @@
+# FastAPI Configuration
+SECRET_KEY=your-secret-key-here-change-this-in-production
+PORT=8000
+
+# Google Sheets Configuration
+GOOGLE_SPREADSHEET_URL=https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit
+GOOGLE_PROJECT_ID=tgyn-admin
+GOOGLE_PRIVATE_KEY_ID=your-private-key-id
+GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_PRIVATE_KEY_HERE\n-----END PRIVATE KEY-----"
+GOOGLE_CLIENT_EMAIL=tgyn-admin@tgyn-admin.iam.gserviceaccount.com
+GOOGLE_CLIENT_ID=your-client-id
+
+# Telegram Configuration
+TELEGRAM_TOKEN=your-telegram-bot-token
+TELEGRAM_GROUP_ID=your-telegram-group-id
+
+# Gemini AI Configuration
+GEMINI_API_KEY=your-gemini-api-key
