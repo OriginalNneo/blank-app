@@ -32,6 +32,9 @@ streamlit.log
 # Data files (if any sensitive data)
 *.json
 !requirements.txt
+!package.json
+!package-lock.json
+!tsconfig.json
 # Explicitly ignore config files with sensitive data
 config.json
 
