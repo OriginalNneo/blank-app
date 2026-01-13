@@ -1,6 +1,9 @@
 import axios from 'axios';
 import { AuthResponse, LoginRequest, BudgetRequest, SOARequest, ReceiptProcessingResponse } from '@/types';
 
+// Support both localhost and ngrok URLs
+// For ngrok: Set NEXT_PUBLIC_API_URL to your ngrok URL (e.g., https://abc123.ngrok.io)
+// For localhost: Leave unset or set to http://localhost:8000
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 const api = axios.create({

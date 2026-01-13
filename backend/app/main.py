@@ -25,9 +25,20 @@ app = FastAPI(
 )
 
 # CORS middleware
+# Get allowed origins from environment variable or use defaults
+# For ngrok: Set ALLOWED_ORIGINS to your frontend URL (e.g., https://xyz789.ngrok.io)
+# Multiple origins can be separated by commas
+allowed_origins_env = config("ALLOWED_ORIGINS", default="")
+if allowed_origins_env:
+    # Split by comma and strip whitespace
+    allowed_origins = [origin.strip() for origin in allowed_origins_env.split(",")]
+else:
+    # Default to localhost for development
+    allowed_origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  # Next.js dev server
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
