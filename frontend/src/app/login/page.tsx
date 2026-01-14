@@ -36,7 +36,7 @@ export default function LoginPage() {
     <div 
       className="min-h-screen flex items-center justify-end p-4 pr-8 md:pr-16 lg:pr-24 relative"
       style={{
-        backgroundImage: 'url(/Sign_In.png)',
+        backgroundImage: 'url(/Sign_In.png?v=2)',
         backgroundSize: 'cover',
         backgroundPosition: 'left 0px center',
         backgroundRepeat: 'no-repeat'
