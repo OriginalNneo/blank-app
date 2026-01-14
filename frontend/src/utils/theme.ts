@@ -1,102 +1,46 @@
-export interface ThemeConfig {
-  primaryColor: string;
-  backgroundColor: string;
-  secondaryBackgroundColor: string;
-  textColor: string;
-  accentColor: string;
-  font: string;
-}
+// 1. Fallback Theme if config.json is missing or empty
+const defaultTheme = {
+  primaryColor: '#0070f3',
+  backgroundColor: '#ffffff',
+  secondaryBackgroundColor: '#f0f0f0',
+  textColor: '#000000',
+  accentColor: '#0070f3',
+  font: 'Inter, sans-serif'
+};
 
-export interface ThemeData {
-  theme: ThemeConfig;
-}
-
-let themeCache: ThemeConfig | null = null;
-
-/**
- * Load theme configuration from config.json file
- * In development, this reads from a static file
- * In production, this should be loaded from an API endpoint
- */
-export async function loadThemeConfig(): Promise<ThemeConfig> {
-  // Check cache first
-  if (themeCache) {
-    return themeCache;
-  }
-
+// 2. These are the functions that were "Not Defined"
+async function loadThemeConfig() {
   try {
-    // In development, fetch from the public directory
-    // In production, this should be an API call to the backend
-    const response = await fetch('/config.json');
-    if (!response.ok) {
-      throw new Error('Failed to load configuration');
-    }
-
-    const configData = await response.json();
-    const themeData = configData.theme;
-    themeCache = themeData;
-    return themeCache as ThemeConfig;
-  } catch (error) {
-    console.warn('Failed to load theme from config file, using defaults:', error);
-
-    // Default theme configuration as fallback
-    const defaultTheme: ThemeConfig = {
-      primaryColor: "#00C2FF",
-      backgroundColor: "#F5F7FA",
-      secondaryBackgroundColor: "#FFFFFF",
-      textColor: "#1A202C",
-      accentColor: "#FF6B6B",
-      font: "Poppins"
-    };
-
-    themeCache = defaultTheme;
+    const res = await fetch('/config.json');
+    return await res.json();
+  } catch (e) {
     return defaultTheme;
   }
 }
 
-/**
- * Load theme synchronously for SSR/initial render
- * Returns default theme to avoid hydration mismatches
- */
-export function loadThemeConfigSync(): ThemeConfig {
-  if (themeCache) {
-    return themeCache;
-  }
-
-  // Default theme for initial render
-  const defaultTheme: ThemeConfig = {
-    primaryColor: "#00C2FF",
-    backgroundColor: "#F5F7FA",
-    secondaryBackgroundColor: "#FFFFFF",
-    textColor: "#1A202C",
-    accentColor: "#FF6B6B",
-    font: "Poppins"
-  };
-
-  return defaultTheme;
+function loadThemeConfigSync() {
+  // In a browser, we usually can't do a true "sync" fetch easily, 
+  // so we return the default if it's not already cached.
+  return defaultTheme; 
 }
 
-/**
- * Get CSS variables for the theme (synchronous version)
- */
+// 3. Your theme application functions
 export function getThemeCSSVariables(): Record<string, string> {
-  const theme = loadThemeConfigSync();
+  const theme = loadThemeConfigSync() || defaultTheme;
   return {
-    '--primary-color': theme.primaryColor,
-    '--background-color': theme.backgroundColor,
-    '--secondary-background-color': theme.secondaryBackgroundColor,
-    '--text-color': theme.textColor,
-    '--accent-color': theme.accentColor,
-    '--font-family': theme.font
+    '--primary-color': theme.primaryColor || defaultTheme.primaryColor,
+    '--background-color': theme.backgroundColor || defaultTheme.backgroundColor,
+    '--secondary-background-color': theme.secondaryBackgroundColor || defaultTheme.secondaryBackgroundColor,
+    '--text-color': theme.textColor || defaultTheme.textColor,
+    '--accent-color': theme.accentColor || defaultTheme.accentColor,
+    '--font-family': theme.font || defaultTheme.font
   };
 }
 
-/**
- * Apply theme to CSS custom properties (async version)
- */
 export async function applyTheme(): Promise<void> {
   if (typeof document !== 'undefined') {
-    const theme = await loadThemeConfig();
+    const loadedTheme = await loadThemeConfig();
+    const theme = loadedTheme || defaultTheme;
     const root = document.documentElement;
 
     root.style.setProperty('--primary-color', theme.primaryColor);
@@ -108,12 +52,9 @@ export async function applyTheme(): Promise<void> {
   }
 }
 
-/**
- * Apply theme synchronously using cached/default theme
- */
 export function applyThemeSync(): void {
   if (typeof document !== 'undefined') {
-    const theme = loadThemeConfigSync();
+    const theme = loadThemeConfigSync() || defaultTheme;
     const root = document.documentElement;
 
     root.style.setProperty('--primary-color', theme.primaryColor);
