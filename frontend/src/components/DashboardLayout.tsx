@@ -10,7 +10,8 @@ import {
   CalculatorIcon,
   ArrowRightOnRectangleIcon,
   Bars3Icon,
-  XMarkIcon
+  XMarkIcon,
+  ClipboardDocumentListIcon
 } from '@heroicons/react/24/outline';
 
 interface DashboardLayoutProps {
@@ -49,6 +50,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
     { name: 'Budget Planner', href: '/dashboard/budget', icon: CalculatorIcon },
     { name: 'SOA', href: '/dashboard/soa', icon: DocumentTextIcon },
+    { name: 'Meeting Minutes', href: '/dashboard/minutes', icon: ClipboardDocumentListIcon },
   ];
 
   const handleLogout = () => {

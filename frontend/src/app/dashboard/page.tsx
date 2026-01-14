@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
-import { CalculatorIcon, DocumentTextIcon, ChartBarIcon } from '@heroicons/react/24/outline';
+import { CalculatorIcon, DocumentTextIcon, ChartBarIcon, ClipboardDocumentListIcon } from '@heroicons/react/24/outline';
 
 export default function DashboardPage() {
   const { user, isLoading } = useAuth();
@@ -41,6 +41,13 @@ export default function DashboardPage() {
       description: 'Generate Statement of Accounts',
       href: '/dashboard/soa',
       icon: DocumentTextIcon,
+      color: '#F08C21',
+    },
+    {
+      name: 'Meeting Minutes',
+      description: 'Generate meeting minutes from PowerPoint',
+      href: '/dashboard/minutes',
+      icon: ClipboardDocumentListIcon,
       color: '#F08C21',
     },
   ];

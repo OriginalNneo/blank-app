@@ -123,4 +123,57 @@ export const soaService = {
   },
 };
 
+export const minutesService = {
+  generateMinutes: async (
+    file: File,
+    meetingTitle?: string,
+    dateTime?: string,
+    company?: string,
+    location?: string,
+    attendees?: string,
+    absent?: string,
+    meetingChair?: string
+  ): Promise<Blob> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (meetingTitle) formData.append('meeting_title', meetingTitle);
+    if (dateTime) formData.append('date_time', dateTime);
+    if (company) formData.append('company', company);
+    if (location) formData.append('location', location);
+    if (attendees) formData.append('attendees', attendees);
+    if (absent) formData.append('absent', absent);
+    if (meetingChair) formData.append('meeting_chair', meetingChair);
+
+    const response = await api.post('/api/minutes/generate', formData, {
+      responseType: 'blob',
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  previewMinutes: async (
+    file: File,
+    meetingTitle?: string,
+    dateTime?: string,
+    company?: string,
+    location?: string
+  ) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (meetingTitle) formData.append('meeting_title', meetingTitle);
+    if (dateTime) formData.append('date_time', dateTime);
+    if (company) formData.append('company', company);
+    if (location) formData.append('location', location);
+
+    const response = await api.post('/api/minutes/preview', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+};
+
 export default api;

@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 import uvicorn
 from decouple import config
 
-from app.routers import auth, budget, soa
+from app.routers import auth, budget, soa, minutes
 from app.services.database import init_db
 
 # Lifespan context manager for startup/shutdown events
@@ -48,6 +48,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(budget.router, prefix="/api/budget", tags=["Budget"])
 app.include_router(soa.router, prefix="/api/soa", tags=["SOA"])
+app.include_router(minutes.router, prefix="/api/minutes", tags=["Minutes"])
 
 @app.get("/")
 async def root():

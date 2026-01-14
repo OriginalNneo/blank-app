@@ -14,13 +14,15 @@ import {
   CloudArrowUpIcon,
   PhotoIcon,
   XMarkIcon,
-  DocumentTextIcon
+  DocumentTextIcon,
+  CalendarIcon
 } from '@heroicons/react/24/outline';
 
 export default function SOAPage() {
   const { user, isLoading } = useAuth();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dateInputRef = useRef<HTMLInputElement>(null);
 
   // Form state
   const [eventName, setEventName] = useState('');
@@ -341,12 +343,32 @@ export default function SOAPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-white mb-2">Event Date</label>
-                <input
-                  type="date"
-                  value={eventDate}
-                  onChange={(e) => setEventDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-cyan-500 focus:border-cyan-500 text-black bg-white placeholder-gray-500"
-                />
+                <div className="relative">
+                  <input
+                    ref={dateInputRef}
+                    type="date"
+                    value={eventDate}
+                    onChange={(e) => setEventDate(e.target.value)}
+                    className="w-full px-3 py-2 pl-10 border border-gray-300 rounded-md focus:ring-cyan-500 focus:border-cyan-500 text-black bg-white placeholder-gray-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (dateInputRef.current) {
+                        dateInputRef.current.focus();
+                        if ('showPicker' in dateInputRef.current) {
+                          (dateInputRef.current as any).showPicker();
+                        } else {
+                          dateInputRef.current.click();
+                        }
+                      }
+                    }}
+                    className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 hover:text-gray-600 cursor-pointer focus:outline-none"
+                    aria-label="Open calendar"
+                  >
+                    <CalendarIcon className="h-5 w-5" />
+                  </button>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-white mb-2">Venue</label>
