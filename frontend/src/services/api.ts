@@ -125,7 +125,7 @@ export const soaService = {
 
 export const minutesService = {
   generateMinutes: async (
-    file: File,
+    meetingContent: string,
     meetingTitle?: string,
     dateTime?: string,
     company?: string,
@@ -135,7 +135,7 @@ export const minutesService = {
     meetingChair?: string
   ): Promise<Blob> => {
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('meeting_content', meetingContent);
     if (meetingTitle) formData.append('meeting_title', meetingTitle);
     if (dateTime) formData.append('date_time', dateTime);
     if (company) formData.append('company', company);
@@ -154,20 +154,51 @@ export const minutesService = {
   },
 
   previewMinutes: async (
-    file: File,
+    meetingContent: string,
     meetingTitle?: string,
     dateTime?: string,
     company?: string,
     location?: string
   ) => {
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('meeting_content', meetingContent);
     if (meetingTitle) formData.append('meeting_title', meetingTitle);
     if (dateTime) formData.append('date_time', dateTime);
     if (company) formData.append('company', company);
     if (location) formData.append('location', location);
 
     const response = await api.post('/api/minutes/preview', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  getMembers: async () => {
+    const response = await api.get('/api/minutes/members');
+    return response.data;
+  },
+
+  submitAttendance: async (date: string, attendance: Record<string, string>) => {
+    const formData = new FormData();
+    formData.append('date', date);
+    formData.append('attendance', JSON.stringify(attendance));
+
+    const response = await api.post('/api/minutes/attendance', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  uploadAttendanceFile: async (file: File, date: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('date', date);
+
+    const response = await api.post('/api/minutes/attendance/upload', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },

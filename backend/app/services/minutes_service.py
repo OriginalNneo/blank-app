@@ -1,5 +1,4 @@
 import google.generativeai as genai
-from pptx import Presentation
 from docx import Document
 from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -7,9 +6,11 @@ from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 import io
 import json
+import os
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from app.utils.config import get_gemini_api_key
+from app.services.attendance_service import AttendanceService
 from pydantic import BaseModel
 
 
@@ -32,7 +33,8 @@ class MinutesService:
             raise ValueError("Gemini API key not found in configuration")
 
         genai.configure(api_key=api_key)
-        self.model = self._initialize_gemini_model()
+        self._model = None  # Lazy initialization
+        self._api_key = api_key
 
     def _initialize_gemini_model(self):
         """Initialize Gemini model with preferred settings"""
@@ -65,62 +67,25 @@ class MinutesService:
         except Exception as e:
             raise Exception(f"Failed to initialize Gemini model: {e}")
 
-    def extract_text_from_powerpoint(self, pptx_file) -> str:
-        """Extract all text content from PowerPoint presentation"""
-        try:
-            # Read the file content into bytes if it's a file-like object
-            if hasattr(pptx_file, 'read'):
-                # Reset file pointer to beginning
-                pptx_file.seek(0)
-                file_content = pptx_file.read()
-                # Create a BytesIO object for python-pptx
-                file_stream = io.BytesIO(file_content)
-            else:
-                file_stream = pptx_file
-            
-            prs = Presentation(file_stream)
-            full_text = []
-            
-            for slide_num, slide in enumerate(prs.slides, 1):
-                slide_text = []
-                slide_text.append(f"--- Slide {slide_num} ---")
-                
-                # Extract text from all shapes
-                for shape in slide.shapes:
-                    if hasattr(shape, "text"):
-                        text = shape.text.strip()
-                        if text:
-                            slide_text.append(text)
-                    # Handle tables
-                    if shape.has_table:
-                        table = shape.table
-                        for row in table.rows:
-                            row_text = []
-                            for cell in row.cells:
-                                if cell.text.strip():
-                                    row_text.append(cell.text.strip())
-                            if row_text:
-                                slide_text.append(" | ".join(row_text))
-                
-                if len(slide_text) > 1:  # More than just the slide header
-                    full_text.append("\n".join(slide_text))
-            
-            return "\n\n".join(full_text)
-        except Exception as e:
-            raise Exception(f"Error extracting text from PowerPoint: {str(e)}")
 
-    def process_powerpoint_with_gemini(self, powerpoint_text: str) -> Dict[str, Any]:
-        """Process PowerPoint content with Gemini to extract meeting information"""
+    def _get_model(self):
+        """Get or initialize the Gemini model (lazy initialization)"""
+        if self._model is None:
+            print("Initializing Gemini model...")
+            self._model = self._initialize_gemini_model()
+            print("Gemini model initialized successfully")
+        return self._model
+
+    def process_content_with_gemini(self, content: str) -> Dict[str, Any]:
+        """Process meeting content with Gemini to extract structured information"""
         try:
-            # Ensure model is initialized
-            if not hasattr(self, 'model') or self.model is None:
-                print("Model not initialized, initializing now...")
-                self.model = self._initialize_gemini_model()
+            # Get model (will initialize if needed)
+            model = self._get_model()
             
             prompt = """
-            You are an expert at analyzing meeting presentations and extracting structured information for meeting minutes.
+            You are an expert at analyzing meeting information and extracting structured data for meeting minutes.
 
-            Analyze the following PowerPoint presentation content and extract:
+            Analyze the following meeting content and extract:
             1. Meeting title/type
             2. Agenda items (list of topics discussed)
             3. Key discussion points for each agenda item
@@ -152,11 +117,11 @@ class MinutesService:
             5. Return ONLY the JSON, no other text
             """
 
-            # Process the text
-            print(f"Processing {len(powerpoint_text)} characters with Gemini...")
-            response = self.model.generate_content([
+            # Process the content
+            print(f"Processing {len(content)} characters with Gemini...")
+            response = model.generate_content([
                 prompt,
-                powerpoint_text
+                content
             ])
             print("Got response from Gemini")
 
@@ -181,319 +146,450 @@ class MinutesService:
                 response_text = response_text[json_start:json_end]
 
             # Parse JSON
-            parsed_data = json.loads(response_text)
-            return parsed_data
+            try:
+                parsed_data = json.loads(response_text)
+                return parsed_data
+            except json.JSONDecodeError as json_err:
+                print(f"JSON decode error: {json_err}")
+                print(f"Response text that failed to parse: {response_text[:500]}")
+                # Return a default structure if JSON parsing fails
+                return {
+                    "meeting_title": "Meeting",
+                    "agenda_items": [
+                        {
+                            "item_number": 1,
+                            "title": "General Discussion",
+                            "description": powerpoint_text[:500] if len(powerpoint_text) > 0 else "No content extracted",
+                            "action_items": []
+                        }
+                    ],
+                    "extracted_date": None,
+                    "extracted_location": None,
+                    "extracted_company": None
+                }
 
         except Exception as e:
-            print(f"Error processing PowerPoint with Gemini: {e}")
-            raise Exception(f"Failed to process PowerPoint content: {str(e)}")
+            print(f"Error processing content with Gemini: {e}")
+            import traceback
+            print(traceback.format_exc())
+            raise Exception(f"Failed to process meeting content: {str(e)}")
 
     def generate_minutes_word(
         self, 
         request: MeetingMinutesRequest,
         processed_data: Dict[str, Any]
     ) -> bytes:
-        """Generate meeting minutes Word document following the standardized format"""
-        doc = Document()
-        
-        # Set page margins
-        sections = doc.sections
-        for section in sections:
-            section.top_margin = Inches(1)
-            section.bottom_margin = Inches(1)
-            section.left_margin = Inches(1)
-            section.right_margin = Inches(1)
-
-        # Helper function to add underline
-        def add_underline_paragraph(text, style=None):
-            p = doc.add_paragraph()
-            if style:
-                p.style = style
-            run = p.add_run(text)
-            run.font.size = Pt(11)
-            run.font.name = 'Calibri'
-            # Add underline
-            run.underline = True
-            return p
-
-        # Helper function to add bordered paragraph (for minutes boxes)
-        def add_bordered_paragraph(text, bg_color=None):
-            p = doc.add_paragraph()
-            p.style = 'Normal'
-            run = p.add_run(text)
-            run.font.size = Pt(11)
-            run.font.name = 'Calibri'
+        """Generate meeting minutes Word document following the new format"""
+        try:
+            doc = Document()
             
-            # Add border and background color using shading
-            pPr = p._element.get_or_add_pPr()
+            # Set page margins
+            sections = doc.sections
+            for section in sections:
+                section.top_margin = Inches(1)
+                section.bottom_margin = Inches(1)
+                section.left_margin = Inches(1)
+                section.right_margin = Inches(1)
+
+            # Add logo at the top left
+            try:
+                # Try multiple possible paths to find the logo
+                current_file = os.path.abspath(__file__)
+                possible_paths = [
+                    # Path 1: Absolute path (most reliable)
+                    '/Users/nathanielneo/Desktop/TGYN_Admin/Image/TGYN Logo S.jpeg',
+                    # Path 2: From backend/app/services/minutes_service.py -> go up 4 levels
+                    os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_file)))), 'Image', 'TGYN Logo S.jpeg'),
+                    # Path 3: Relative from backend directory
+                    os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(current_file))), '..', 'Image', 'TGYN Logo S.jpeg'),
+                    # Path 4: From project root (if running from root)
+                    os.path.join(os.getcwd(), 'Image', 'TGYN Logo S.jpeg'),
+                    # Path 5: Try from current working directory with various parent levels
+                    os.path.join(os.getcwd(), '..', 'Image', 'TGYN Logo S.jpeg'),
+                ]
+                
+                logo_path = None
+                for path in possible_paths:
+                    normalized_path = os.path.normpath(path)
+                    if os.path.exists(normalized_path):
+                        logo_path = normalized_path
+                        break
+                
+                if logo_path and os.path.exists(logo_path):
+                    # Create a paragraph for the logo at the very beginning
+                    logo_paragraph = doc.add_paragraph()
+                    logo_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                    
+                    # Add the image to the paragraph
+                    run = logo_paragraph.add_run()
+                    # Add image with width of 1.5 inches (adjust as needed)
+                    # Height will be calculated automatically to maintain aspect ratio
+                    run.add_picture(logo_path, width=Inches(1.5))
+                    print(f"Logo added successfully from: {logo_path}")
+                    
+                    # Add spacing after logo
+                    doc.add_paragraph()
+                else:
+                    print(f"Logo file not found. Tried paths: {possible_paths}")
+                    print(f"Current working directory: {os.getcwd()}")
+                    print(f"Current file: {current_file}")
+            except Exception as e:
+                import traceback
+                print(f"Error adding logo: {e}")
+                print(f"Traceback: {traceback.format_exc()}")
+                # Continue without logo if there's an error
+
+            # Helper function to add section header with pink background
+            def add_section_header(text, number=None):
+                p = doc.add_paragraph()
+                if number:
+                    run = p.add_run(f"{number}. {text}")
+                else:
+                    run = p.add_run(text)
+                run.font.size = Pt(12)
+                run.font.name = 'Calibri'
+                run.bold = True
+                run.font.color.rgb = RGBColor(50, 50, 50)  # Dark gray text
+                
+                # Add light pink background
+                pPr = p._element.get_or_add_pPr()
+                shd = OxmlElement('w:shd')
+                shd.set(qn('w:fill'), 'F8D7DA')  # Light pink
+                pPr.append(shd)
+                
+                # Add spacing before and after
+                spacing = OxmlElement('w:spacing')
+                spacing.set(qn('w:before'), '120')
+                spacing.set(qn('w:after'), '120')
+                pPr.append(spacing)
+                
+                return p
+
+            # Parse date and time
+            date_str = ""
+            time_str = ""
+            if request.date_time:
+                try:
+                    if 'T' in request.date_time:
+                        date_part, time_part = request.date_time.split('T')
+                        try:
+                            from datetime import datetime
+                            dt = datetime.strptime(date_part, "%Y-%m-%d")
+                            date_str = dt.strftime("%B %d, %Y")  # e.g., "September 21, 2025"
+                        except:
+                            date_str = date_part
+                        time_str = time_part[:5] if len(time_part) >= 5 else time_part
+                    else:
+                        try:
+                            from datetime import datetime
+                            dt = datetime.strptime(request.date_time, "%Y-%m-%d")
+                            date_str = dt.strftime("%B %d, %Y")
+                        except:
+                            date_str = request.date_time
+                except:
+                    date_str = request.date_time
+
+            # Title - Centered, large, bold
+            title_p = doc.add_paragraph()
+            title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            title_run = title_p.add_run(request.meeting_title or "Meeting Minutes")
+            title_run.font.size = Pt(18)
+            title_run.font.name = 'Calibri'
+            title_run.bold = True
+            title_run.font.color.rgb = RGBColor(50, 50, 50)  # Dark gray
+            
+            # Decorative line below title
+            line_p = doc.add_paragraph()
+            line_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            line_run = line_p.add_run("_" * 60)
+            line_run.font.size = Pt(10)
+            line_run.font.color.rgb = RGBColor(100, 100, 100)
+            
+            doc.add_paragraph()  # Spacing
+
+            # Attendance Section at the top
+            attendance_heading = doc.add_paragraph()
+            attendance_heading_run = attendance_heading.add_run("Attendance")
+            attendance_heading_run.font.size = Pt(14)
+            attendance_heading_run.font.name = 'Calibri'
+            attendance_heading_run.bold = True
+            attendance_heading_run.font.color.rgb = RGBColor(50, 50, 50)
+            attendance_heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            
+            # Add light pink background to attendance header
+            pPr = attendance_heading._element.get_or_add_pPr()
             shd = OxmlElement('w:shd')
-            shd.set(qn('w:fill'), bg_color or 'F5F5F5')
+            shd.set(qn('w:fill'), 'F8D7DA')
             pPr.append(shd)
             
-            # Add border
-            pBdr = OxmlElement('w:pBdr')
-            for border_name in ['top', 'left', 'bottom', 'right']:
-                border = OxmlElement(f'w:{border_name}')
-                border.set(qn('w:val'), 'single')
-                border.set(qn('w:sz'), '4')
-                border.set(qn('w:space'), '0')
-                border.set(qn('w:color'), '000000')
-                pBdr.append(border)
-            pPr.append(pBdr)
+            # Fetch attendance data from Google Sheets - use most recent date
+            present_members = []
+            absent_members = []
             
-            return p
-
-        # Title - Centered, large, elegant serif font
-        title = doc.add_paragraph()
-        title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        title_run = title.add_run(request.meeting_title)
-        title_run.font.size = Pt(20)
-        title_run.font.name = 'Times New Roman'
-        title_run.bold = True
-        
-        # Decorative line
-        doc.add_paragraph("_" * 80).alignment = WD_ALIGN_PARAGRAPH.CENTER
-        doc.add_paragraph()  # Spacing
-
-        # Meeting Information Section - Two columns using table
-        info_table = doc.add_table(rows=3, cols=4)
-        info_table.style = 'Light Grid Accent 1'
-        
-        # Left column
-        info_table.cell(0, 0).text = "Date & Time"
-        info_table.cell(0, 1).text = request.date_time or "_________________"
-        info_table.cell(1, 0).text = "Company"
-        info_table.cell(1, 1).text = request.company or "_________________"
-        info_table.cell(2, 0).text = "Attendees"
-        info_table.cell(2, 1).text = request.attendees or "_________________"
-        
-        # Right column
-        info_table.cell(0, 2).text = "Location"
-        info_table.cell(0, 3).text = request.location or "_________________"
-        info_table.cell(1, 2).text = "Absent"
-        info_table.cell(1, 3).text = request.absent or "_________________"
-        
-        # Format table cells - remove borders for cleaner look
-        try:
-            for row in info_table.rows:
-                for cell in row.cells:
-                    for paragraph in cell.paragraphs:
-                        for run in paragraph.runs:
-                            run.font.size = Pt(11)
-                            run.font.name = 'Calibri'
-                    # Remove borders safely
-                    try:
-                        tcPr = cell._element.get_or_add_tcPr()
-                        borders = tcPr.find(qn('w:tcBorders'))
-                        if borders is not None:
-                            tcPr.remove(borders)
-                    except:
-                        pass  # Ignore border removal errors
-        except Exception as e:
-            print(f"Warning: Error formatting info table: {e}")
-        
-        doc.add_paragraph()  # Spacing
-
-        # Agenda Section
-        agenda_heading = doc.add_paragraph()
-        agenda_heading_run = agenda_heading.add_run("Agenda")
-        agenda_heading_run.font.size = Pt(14)
-        agenda_heading_run.font.name = 'Times New Roman'
-        agenda_heading_run.bold = True
-        
-        agenda_items = processed_data.get("agenda_items", [])
-        # Display agenda in two columns using table
-        mid_point = (len(agenda_items) + 1) // 2
-        max_rows = max(mid_point, len(agenda_items) - mid_point)
-        agenda_table = doc.add_table(rows=max_rows, cols=2)
-        
-        for i, item in enumerate(agenda_items):
-            if i < mid_point:
-                agenda_table.cell(i, 0).text = f"• {item.get('title', '')}"
-            else:
-                agenda_table.cell(i - mid_point, 1).text = f"• {item.get('title', '')}"
-        
-        # Format agenda table - remove borders
-        try:
-            for row in agenda_table.rows:
-                for cell in row.cells:
-                    for paragraph in cell.paragraphs:
-                        for run in paragraph.runs:
-                            run.font.size = Pt(11)
-                            run.font.name = 'Calibri'
-                    # Remove borders safely
-                    try:
-                        tcPr = cell._element.get_or_add_tcPr()
-                        borders = tcPr.find(qn('w:tcBorders'))
-                        if borders is not None:
-                            tcPr.remove(borders)
-                    except:
-                        pass  # Ignore border removal errors
-            
-            # Remove table-level borders for agenda table
             try:
-                tbl = agenda_table._element
-                tblPr = tbl.get_or_add_tblPr()
-                tblBorders = tblPr.find(qn('w:tblBorders'))
-                if tblBorders is not None:
-                    tblPr.remove(tblBorders)
-            except:
-                pass  # Ignore table border removal errors
+                # Get the most recent attendance from Google Sheets
+                attendance_service = AttendanceService()
+                members = attendance_service.get_members()
+                attendance_data, attendance_date_used = attendance_service.get_most_recent_attendance()
+                
+                print(f"Using attendance data from date: {attendance_date_used}")
+                
+                # Create a mapping of name to member info (case-insensitive)
+                members_map = {}
+                for member in members:
+                    members_map[member['name'].lower()] = member
+                
+                # Separate present and absent members
+                for name, status in attendance_data.items():
+                    name_lower = name.lower()
+                    if name_lower in members_map:
+                        member_info = members_map[name_lower]
+                        if status.lower() == 'present':
+                            present_members.append({
+                                'name': member_info['name'],
+                                'address': member_info.get('address', member_info['name'])
+                            })
+                        else:
+                            absent_members.append({
+                                'name': member_info['name'],
+                                'address': member_info.get('address', member_info['name'])
+                            })
+            except Exception as e:
+                print(f"Error fetching attendance from Google Sheets: {e}")
+                import traceback
+                print(traceback.format_exc())
+                # Fallback to using request.attendees and request.absent if available
+                if request.attendees:
+                    for attendee in [a.strip() for a in request.attendees.split(',') if a.strip()]:
+                        present_members.append({'name': attendee, 'address': attendee})
+                if request.absent:
+                    for absent in [a.strip() for a in request.absent.split(',') if a.strip()]:
+                        absent_members.append({'name': absent, 'address': absent})
+            
+            # Present Section
+            if present_members:
+                present_heading = doc.add_paragraph()
+                present_heading_run = present_heading.add_run("Present")
+                present_heading_run.font.size = Pt(12)
+                present_heading_run.font.name = 'Calibri'
+                present_heading_run.bold = True
+                present_heading_run.font.color.rgb = RGBColor(50, 50, 50)
+                present_heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                
+                for member in present_members:
+                    p = doc.add_paragraph()
+                    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    run = p.add_run(f"{member['address']} {member['name']}")
+                    run.font.size = Pt(11)
+                    run.font.name = 'Calibri'
+            
+            # Absent with Apologies Section
+            if absent_members:
+                absent_heading = doc.add_paragraph()
+                absent_heading_run = absent_heading.add_run("Absent with Apologies")
+                absent_heading_run.font.size = Pt(12)
+                absent_heading_run.font.name = 'Calibri'
+                absent_heading_run.bold = True
+                absent_heading_run.font.color.rgb = RGBColor(50, 50, 50)
+                absent_heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                
+                for member in absent_members:
+                    p = doc.add_paragraph()
+                    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    run = p.add_run(f"{member['address']} {member['name']}")
+                    run.font.size = Pt(11)
+                    run.font.name = 'Calibri'
+            
+            doc.add_paragraph()  # Spacing
+
+            # Meeting Metadata Section
+            metadata_items = [
+                ("Date:", date_str or ""),
+                ("Time:", time_str or ""),
+                ("Location:", request.location or ""),
+            ]
+            
+            for label, value in metadata_items:
+                p = doc.add_paragraph()
+                run1 = p.add_run(f"{label} ")
+                run1.font.size = Pt(11)
+                run1.font.name = 'Calibri'
+                run1.bold = True
+                run2 = p.add_run(value)
+                run2.font.size = Pt(11)
+                run2.font.name = 'Calibri'
+            
+            doc.add_paragraph()  # Spacing
+
+            # Get agenda items
+            agenda_items = processed_data.get("agenda_items", [])
+            if not agenda_items:
+                agenda_items = [{"item_number": 1, "title": "General Discussion", "description": "Meeting discussion", "action_items": []}]
+
+            # Section 1: Call to Order
+            add_section_header("Call to Order", 1)
+            chair = request.meeting_chair or "[Chairperson's Name]"
+            time_display = time_str or "[Time]"
+            call_to_order_p = doc.add_paragraph()
+            call_to_order_run = call_to_order_p.add_run(f"The meeting was called to order by {chair} at {time_display}.")
+            call_to_order_run.font.size = Pt(11)
+            call_to_order_run.font.name = 'Calibri'
+            
+            doc.add_paragraph()  # Spacing
+
+            # Section 2: Executive Reports / Agenda Items
+            add_section_header("Executive Reports", 2)
+            
+            # Group agenda items or display them
+            for idx, item in enumerate(agenda_items[:5]):  # Limit to first 5 items for reports
+                title = item.get('title', 'General Discussion')
+                description = item.get('description', '')
+                action_items = item.get('action_items', [])
+                
+                # Sub-section title (bold)
+                sub_p = doc.add_paragraph()
+                sub_run = sub_p.add_run(title)
+                sub_run.font.size = Pt(11)
+                sub_run.font.name = 'Calibri'
+                sub_run.bold = True
+                
+                # Description with bullet
+                desc_p = doc.add_paragraph()
+                desc_run = desc_p.add_run(f"• {description}")
+                desc_run.font.size = Pt(11)
+                desc_run.font.name = 'Calibri'
+                
+                # Action items if any
+                if action_items:
+                    for ai in action_items[:2]:  # Limit action items
+                        ai_p = doc.add_paragraph()
+                        ai_run = ai_p.add_run(f"• {str(ai)}")
+                        ai_run.font.size = Pt(11)
+                        ai_run.font.name = 'Calibri'
+            
+            doc.add_paragraph()  # Spacing
+
+            # Section 3: Ongoing Issues
+            add_section_header("Ongoing Issues", 3)
+            ongoing_p = doc.add_paragraph()
+            ongoing_run = ongoing_p.add_run("Items that were set aside in previous meetings.")
+            ongoing_run.font.size = Pt(11)
+            ongoing_run.font.name = 'Calibri'
+            
+            doc.add_paragraph()  # Spacing
+
+            # Section 4: New Issues
+            add_section_header("New Issues", 4)
+            
+            # Use remaining agenda items or create placeholder
+            new_items = agenda_items[5:] if len(agenda_items) > 5 else []
+            if not new_items:
+                new_items = [{"title": "New Item 1", "description": "Discussion led by [Name].", "action_items": ["Action items and responsible persons."]},
+                           {"title": "New Item 2", "description": "Discussion led by [Name].", "action_items": ["Action items and responsible persons."]}]
+            
+            for item in new_items[:2]:  # Limit to 2 new items
+                title = item.get('title', 'New Item')
+                description = item.get('description', '')
+                action_items = item.get('action_items', [])
+                
+                # Item title (bold)
+                item_p = doc.add_paragraph()
+                item_run = item_p.add_run(title)
+                item_run.font.size = Pt(11)
+                item_run.font.name = 'Calibri'
+                item_run.bold = True
+                
+                # Description with bullet
+                desc_p = doc.add_paragraph()
+                desc_run = desc_p.add_run(f"• {description}")
+                desc_run.font.size = Pt(11)
+                desc_run.font.name = 'Calibri'
+                
+                # Action items
+                for ai in action_items[:2]:
+                    ai_p = doc.add_paragraph()
+                    ai_run = ai_p.add_run(f"• {str(ai)}")
+                    ai_run.font.size = Pt(11)
+                    ai_run.font.name = 'Calibri'
+            
+            doc.add_paragraph()  # Spacing
+
+            # Section 5: Next Meeting
+            add_section_header("Next Meeting", 5)
+            next_meeting_items = [
+                ("Date:", ""),
+                ("Time:", ""),
+                ("Location:", "")
+            ]
+            
+            for label, value in next_meeting_items:
+                p = doc.add_paragraph()
+                run1 = p.add_run(f"{label} ")
+                run1.font.size = Pt(11)
+                run1.font.name = 'Calibri'
+                run1.bold = True
+                run2 = p.add_run(value)
+                run2.font.size = Pt(11)
+                run2.font.name = 'Calibri'
+
+            # Save to bytes
+            output = io.BytesIO()
+            doc.save(output)
+            output.seek(0)
+            return output.getvalue()
+            
         except Exception as e:
-            print(f"Warning: Error formatting agenda table: {e}")
-        
-        doc.add_paragraph()  # Spacing
+            print(f"Error during Word document generation: {e}")
+            import traceback
+            print(traceback.format_exc())
+            # Try to save what we have so far if doc exists
+            try:
+                if 'doc' in locals():
+                    output = io.BytesIO()
+                    doc.save(output)
+                    output.seek(0)
+                    print("Saved partial document")
+                    return output.getvalue()
+            except:
+                pass
+            raise Exception(f"Failed to generate Word document: {str(e)}")
 
-        # Minutes Section
-        minutes_heading = doc.add_paragraph()
-        minutes_heading_run = minutes_heading.add_run("Minutes")
-        minutes_heading_run.font.size = Pt(14)
-        minutes_heading_run.font.name = 'Times New Roman'
-        minutes_heading_run.bold = True
-        
-        # Create minutes items with action by column using table
-        for item in agenda_items:
-            item_num = item.get('item_number', 1)
-            title = item.get('title', '')
-            description = item.get('description', '')
-            action_items = item.get('action_items', [])
-            
-            # Minutes item header (bold number and title)
-            minutes_header = doc.add_paragraph()
-            minutes_header_run = minutes_header.add_run(f"{item_num}. {title.upper()}:")
-            minutes_header_run.font.size = Pt(11)
-            minutes_header_run.font.name = 'Calibri'
-            minutes_header_run.bold = True
-            
-            # Create table for minutes content and action by
-            minutes_table = doc.add_table(rows=1, cols=2)
-            minutes_table.columns[0].width = Inches(4.5)
-            minutes_table.columns[1].width = Inches(2.5)
-            
-            # Minutes content in left cell with gray background
-            content = description
-            if action_items:
-                content += "\n\nAction Items:\n" + "\n".join([f"• {ai}" for ai in action_items])
-            
-            minutes_table.cell(0, 0).text = content
-            minutes_table.cell(0, 1).text = ""  # Empty for "Action By"
-            
-            # Format minutes table
-            # Left cell - gray background
-            left_cell = minutes_table.cell(0, 0)
-            for paragraph in left_cell.paragraphs:
-                for run in paragraph.runs:
-                    run.font.size = Pt(11)
-                    run.font.name = 'Calibri'
-            # Add gray background
-            tcPr = left_cell._element.get_or_add_tcPr()
-            shd = OxmlElement('w:shd')
-            shd.set(qn('w:fill'), 'F5F5F5')
-            tcPr.append(shd)
-            
-            # Right cell - action by
-            right_cell = minutes_table.cell(0, 1)
-            for paragraph in right_cell.paragraphs:
-                for run in paragraph.runs:
-                    run.font.size = Pt(11)
-                    run.font.name = 'Calibri'
-            
-            # Add borders to table
-            tbl = minutes_table._element
-            tblPr = tbl.get_or_add_tblPr()
-            tblBorders = OxmlElement('w:tblBorders')
-            for border_name in ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']:
-                border = OxmlElement(f'w:{border_name}')
-                border.set(qn('w:val'), 'single')
-                border.set(qn('w:sz'), '4')
-                border.set(qn('w:space'), '0')
-                border.set(qn('w:color'), '000000')
-                tblBorders.append(border)
-            tblPr.append(tblBorders)
-            
-            doc.add_paragraph()  # Spacing between items
-
-        # Adjournment Section
-        doc.add_paragraph()  # Spacing
-        adjournment_heading = doc.add_paragraph()
-        adjournment_heading_run = adjournment_heading.add_run("Adjournment")
-        adjournment_heading_run.font.size = Pt(14)
-        adjournment_heading_run.font.name = 'Times New Roman'
-        adjournment_heading_run.bold = True
-        
-        chair = request.meeting_chair or "[Meeting Chair]"
-        time = request.date_time or "[Meeting Time]"
-        adjournment_text = f"The meeting was adjourned by {chair} at {time}."
-        adjournment_p = doc.add_paragraph(adjournment_text)
-        for run in adjournment_p.runs:
-            run.font.size = Pt(11)
-            run.font.name = 'Calibri'
-
-        # Secretary Notes Section
-        doc.add_paragraph()  # Spacing
-        doc.add_paragraph()  # Spacing
-        
-        secretary_heading = doc.add_paragraph()
-        secretary_heading_run = secretary_heading.add_run("Secretary Notes:")
-        secretary_heading_run.font.size = Pt(14)
-        secretary_heading_run.font.name = 'Times New Roman'
-        secretary_heading_run.bold = True
-        
-        # Attending/Helping
-        attending_p = doc.add_paragraph()
-        run1 = attending_p.add_run("Attending/Helping: ")
-        run1.font.size = Pt(11)
-        run1.font.name = 'Calibri'
-        run2 = attending_p.add_run("_________________")
-        run2.underline = True
-        run2.font.size = Pt(11)
-        run2.font.name = 'Calibri'
-        
-        # Remarks
-        remarks_p = doc.add_paragraph()
-        remarks_run1 = remarks_p.add_run("Remarks: ")
-        remarks_run1.font.size = Pt(11)
-        remarks_run1.font.name = 'Calibri'
-        
-        # Add underline lines for remarks
-        for _ in range(3):
-            remarks_line = doc.add_paragraph()
-            remarks_line_run = remarks_line.add_run("_________________")
-            remarks_line_run.font.size = Pt(11)
-            remarks_line_run.font.name = 'Calibri'
-            remarks_line_run.underline = True
-
-        # Save to bytes
-        output = io.BytesIO()
-        doc.save(output)
-        output.seek(0)
-        return output.getvalue()
-
-    def process_powerpoint_and_generate_minutes(
+    def process_content_and_generate_minutes(
         self,
-        pptx_file,
+        content: str,
         request: MeetingMinutesRequest
     ) -> bytes:
-        """Complete pipeline: Extract from PowerPoint, process with Gemini, generate minutes"""
+        """Complete pipeline: Process content with Gemini, generate minutes"""
         try:
-            # Ensure we have a BytesIO object
-            if hasattr(pptx_file, 'read'):
-                # If it's already a BytesIO or file-like object, use it directly
-                if hasattr(pptx_file, 'seek'):
-                    pptx_file.seek(0)
-                file_stream = pptx_file
-            else:
-                file_stream = io.BytesIO(pptx_file)
+            if not content or not content.strip():
+                raise Exception("Meeting content cannot be empty")
             
-            # Extract text from PowerPoint
-            print("Extracting text from PowerPoint...")
-            powerpoint_text = self.extract_text_from_powerpoint(file_stream)
-            print(f"Extracted {len(powerpoint_text)} characters from PowerPoint")
+            print(f"Processing {len(content)} characters of meeting content...")
             
-            # Process with Gemini
+            # Process with Gemini (with fallback if it fails)
             print("Processing with Gemini...")
-            processed_data = self.process_powerpoint_with_gemini(powerpoint_text)
-            print(f"Processed data: {processed_data}")
+            try:
+                processed_data = self.process_content_with_gemini(content)
+                print(f"Processed data: {processed_data}")
+            except Exception as gemini_error:
+                print(f"Gemini processing failed: {gemini_error}")
+                # Create fallback structure from content
+                print("Using fallback: creating basic structure from content...")
+                processed_data = {
+                    "meeting_title": request.meeting_title or "Meeting",
+                    "agenda_items": [
+                        {
+                            "item_number": 1,
+                            "title": "General Discussion",
+                            "description": content[:1000] if len(content) > 0 else "No content provided. Please fill in meeting details manually.",
+                            "action_items": []
+                        }
+                    ],
+                    "extracted_date": None,
+                    "extracted_location": None,
+                    "extracted_company": None
+                }
+                print("Fallback structure created")
             
             # Update request with extracted data if not provided
             if not request.date_time and processed_data.get("extracted_date"):
@@ -515,6 +611,6 @@ class MinutesService:
         except Exception as e:
             import traceback
             error_trace = traceback.format_exc()
-            print(f"Error in process_powerpoint_and_generate_minutes: {str(e)}")
+            print(f"Error in process_content_and_generate_minutes: {str(e)}")
             print(f"Traceback: {error_trace}")
             raise Exception(f"Error processing PowerPoint and generating minutes: {str(e)}")

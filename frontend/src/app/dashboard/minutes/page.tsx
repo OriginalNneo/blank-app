@@ -6,13 +6,14 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { minutesService } from '@/services/api';
-import { ArrowDownTrayIcon, DocumentArrowUpIcon, EyeIcon, XMarkIcon, CalendarIcon, ClockIcon } from '@heroicons/react/24/outline';
+import { ArrowDownTrayIcon, EyeIcon, XMarkIcon, CalendarIcon, ClockIcon } from '@heroicons/react/24/outline';
 
 export default function MinutesPage() {
   const { user, isLoading } = useAuth();
   const router = useRouter();
 
   // Form state
+  const [meetingContent, setMeetingContent] = useState('');
   const [meetingTitle, setMeetingTitle] = useState('Corporate Board Meeting');
   const [meetingDate, setMeetingDate] = useState('');
   const [meetingTime, setMeetingTime] = useState('');
@@ -22,11 +23,16 @@ export default function MinutesPage() {
   const [absent, setAbsent] = useState('');
   const [meetingChair, setMeetingChair] = useState('');
 
+  // Attendance state
+  const [members, setMembers] = useState<Array<{name: string, address: string}>>([]);
+  const [attendance, setAttendance] = useState<Record<string, string>>({});
+  const [isLoadingMembers, setIsLoadingMembers] = useState(false);
+  const [isSubmittingAttendance, setIsSubmittingAttendance] = useState(false);
+
   // Refs for date inputs
   const dateInputRef = useRef<HTMLInputElement>(null);
 
-  // File state
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  // State
   const [isGenerating, setIsGenerating] = useState(false);
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [previewData, setPreviewData] = useState<any>(null);
@@ -38,21 +44,37 @@ export default function MinutesPage() {
     }
   }, [user, isLoading, router]);
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      if (file.name.toLowerCase().endsWith('.pptx') || file.name.toLowerCase().endsWith('.ppt')) {
-        setSelectedFile(file);
-      } else {
-        alert('Please select a PowerPoint file (.pptx or .ppt)');
-        event.target.value = '';
+  useEffect(() => {
+    // Load members when component mounts
+    const loadMembers = async () => {
+      setIsLoadingMembers(true);
+      try {
+        const result = await minutesService.getMembers();
+        if (result.success && result.members) {
+          setMembers(result.members);
+          // Initialize attendance as "Not Present" for all members
+          const initialAttendance: Record<string, string> = {};
+          result.members.forEach((member: {name: string, address: string}) => {
+            initialAttendance[member.name] = 'Not Present';
+          });
+          setAttendance(initialAttendance);
+        }
+      } catch (error) {
+        console.error('Error loading members:', error);
+        alert('Failed to load members. Please try again.');
+      } finally {
+        setIsLoadingMembers(false);
       }
+    };
+
+    if (user) {
+      loadMembers();
     }
-  };
+  }, [user]);
 
   const handlePreview = async () => {
-    if (!selectedFile) {
-      alert('Please select a PowerPoint file first');
+    if (!meetingContent || !meetingContent.trim()) {
+      alert('Please enter meeting content first');
       return;
     }
 
@@ -61,7 +83,7 @@ export default function MinutesPage() {
       // Combine date and time for the API
       const dateTime = meetingDate && meetingTime ? `${meetingDate}T${meetingTime}` : (meetingDate || '');
       const result = await minutesService.previewMinutes(
-        selectedFile,
+        meetingContent,
         meetingTitle,
         dateTime,
         company,
@@ -69,17 +91,88 @@ export default function MinutesPage() {
       );
       setPreviewData(result);
       setShowPreview(true);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Preview error:', error);
-      alert('Error previewing PowerPoint content');
+      const status = error.response?.status || error.status;
+      const errorMessage = error.response?.data?.detail || error.message || 'Unknown error';
+      
+      if (status === 429) {
+        alert('⚠️ Gemini API Quota Exceeded\n\nYour free tier quota has been exhausted. Options:\n\n1. Wait a few minutes for the quota to reset\n2. Get a new Gemini API key from https://aistudio.google.com/\n3. Upgrade to a paid plan\n\nYou can still generate minutes without preview - it will use the content you provided.');
+      } else {
+        alert(`Error previewing content:\n\n${errorMessage}`);
+      }
     } finally {
       setIsPreviewing(false);
     }
   };
 
+  const handleAttendanceChange = (memberName: string, status: string) => {
+    setAttendance(prev => ({
+      ...prev,
+      [memberName]: status
+    }));
+  };
+
+  const handleAllPresent = () => {
+    const allPresent: Record<string, string> = {};
+    members.forEach(member => {
+      allPresent[member.name] = 'Present';
+    });
+    setAttendance(allPresent);
+  };
+
+  const handleSubmitAttendance = async () => {
+    if (!meetingDate) {
+      alert('Please select a date first');
+      return;
+    }
+
+    if (members.length === 0) {
+      alert('No members loaded. Please wait for members to load.');
+      return;
+    }
+
+    console.log('Submitting attendance:', { date: meetingDate, attendance });
+    
+    setIsSubmittingAttendance(true);
+    try {
+      const result = await minutesService.submitAttendance(meetingDate, attendance);
+      console.log('Attendance submission result:', result);
+      
+      if (result.success) {
+        alert('Attendance submitted successfully!');
+        
+        // Update attendees and absent strings for display
+        const presentNames = Object.entries(attendance)
+          .filter(([_, status]) => status === 'Present')
+          .map(([name, _]) => name);
+        const absentNames = Object.entries(attendance)
+          .filter(([_, status]) => status === 'Not Present')
+          .map(([name, _]) => name);
+        
+        setAttendees(presentNames.join(', '));
+        setAbsent(absentNames.join(', '));
+      } else {
+        alert('Failed to submit attendance. Please try again.');
+      }
+    } catch (error: any) {
+      console.error('Error submitting attendance:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      
+      const errorMessage = error.response?.data?.detail || error.response?.data?.message || error.message || 'Unknown error';
+      alert(`Error submitting attendance:\n\n${errorMessage}\n\nPlease check the browser console for more details.`);
+    } finally {
+      setIsSubmittingAttendance(false);
+    }
+  };
+
   const handleGenerate = async () => {
-    if (!selectedFile) {
-      alert('Please select a PowerPoint file first');
+    if (!meetingContent || !meetingContent.trim()) {
+      alert('Please enter meeting content first');
       return;
     }
 
@@ -88,7 +181,7 @@ export default function MinutesPage() {
       // Combine date and time for the API
       const dateTime = meetingDate && meetingTime ? `${meetingDate}T${meetingTime}` : (meetingDate || '');
       const blob = await minutesService.generateMinutes(
-        selectedFile,
+        meetingContent,
         meetingTitle,
         dateTime,
         company,
@@ -106,9 +199,16 @@ export default function MinutesPage() {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Generation error:', error);
-      alert('Error generating meeting minutes');
+      const status = error.response?.status || error.status;
+      const errorMessage = error.response?.data?.detail || error.message || 'Unknown error';
+      
+      if (status === 429) {
+        alert('⚠️ Gemini API Quota Exceeded\n\nYour free tier quota has been exhausted. The system will generate a basic meeting minutes document using the content you provided.\n\nOptions:\n1. Wait a few minutes for the quota to reset\n2. Get a new Gemini API key from https://aistudio.google.com/\n3. Upgrade to a paid plan\n\nNote: The document will still be generated, but without AI processing.');
+      } else {
+        alert(`Error generating meeting minutes:\n\n${errorMessage}`);
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -132,37 +232,10 @@ export default function MinutesPage() {
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-black mb-2">Meeting Minutes Generator</h1>
+            <h1 className="text-3xl font-bold text-black mb-2">Meeting Minutes</h1>
             <p className="text-black opacity-90">
-              Upload a PowerPoint presentation to automatically generate standardized meeting minutes
+              Enter meeting information and content to automatically generate standardized meeting minutes
             </p>
-          </div>
-
-          {/* File Upload Section */}
-          <div className="rounded-lg shadow-sm border border-gray-200 p-6 mb-6" style={{ backgroundColor: '#6698CC' }}>
-            <h2 className="text-xl font-semibold text-white mb-6">Upload PowerPoint</h2>
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-white mb-2">
-                Select PowerPoint File (.pptx or .ppt)
-              </label>
-              <div className="flex items-center space-x-4">
-                <label className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-black bg-white hover:bg-gray-50 cursor-pointer">
-                  <DocumentArrowUpIcon className="h-4 w-4 mr-2" />
-                  <span>{selectedFile ? 'Change File' : 'Choose File'}</span>
-                  <input
-                    type="file"
-                    accept=".pptx,.ppt,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-powerpoint"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
-                </label>
-                {selectedFile && (
-                  <span className="text-sm text-white opacity-90">
-                    Selected: {selectedFile.name}
-                  </span>
-                )}
-              </div>
-            </div>
           </div>
 
           {/* Meeting Information Section */}
@@ -230,51 +303,67 @@ export default function MinutesPage() {
                   placeholder="Teck Ghee Youth Network"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-white mb-2">Location</label>
-                <input
-                  type="text"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-cyan-500 focus:border-cyan-500 text-black bg-white placeholder-gray-500"
-                  placeholder="Meeting room or venue"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-white mb-2">Attendees</label>
-                <input
-                  type="text"
-                  value={attendees}
-                  onChange={(e) => setAttendees(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-cyan-500 focus:border-cyan-500 text-black bg-white placeholder-gray-500"
-                  placeholder="Names of attendees"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-white mb-2">Absent</label>
-                <input
-                  type="text"
-                  value={absent}
-                  onChange={(e) => setAbsent(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-cyan-500 focus:border-cyan-500 text-black bg-white placeholder-gray-500"
-                  placeholder="Names of absent members"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-white mb-2">Meeting Chair</label>
-                <input
-                  type="text"
-                  value={meetingChair}
-                  onChange={(e) => setMeetingChair(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-cyan-500 focus:border-cyan-500 text-black bg-white placeholder-gray-500"
-                  placeholder="Chairperson name"
-                />
+            </div>
+          </div>
+
+          {/* Attendance Section */}
+          <div className="rounded-lg shadow-sm border border-gray-200 p-6 mb-6" style={{ backgroundColor: '#6698CC' }}>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-semibold text-white">Attendance</h2>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleAllPresent}
+                  className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700"
+                >
+                  All Present
+                </button>
+                <button
+                  onClick={handleSubmitAttendance}
+                  disabled={isSubmittingAttendance || !meetingDate}
+                  className="px-4 py-2 bg-cyan-600 text-white text-sm font-medium rounded-md hover:bg-cyan-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                >
+                  {isSubmittingAttendance ? 'Submitting...' : 'Submit Attendance'}
+                </button>
               </div>
             </div>
-            <div className="mt-4 p-4 bg-blue-50 rounded-md">
-              <p className="text-sm text-blue-800">
-                <strong>Note:</strong> Information will be extracted from the PowerPoint presentation using AI. 
-                You can fill in additional details above or leave them blank to be filled in later.
+            
+            {isLoadingMembers ? (
+              <div className="text-white text-center py-4">Loading members...</div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-96 overflow-y-auto">
+                {members.map((member) => (
+                  <div key={member.name} className="flex items-center space-x-3 bg-white p-3 rounded-md">
+                    <input
+                      type="checkbox"
+                      checked={attendance[member.name] === 'Present'}
+                      onChange={(e) => handleAttendanceChange(member.name, e.target.checked ? 'Present' : 'Not Present')}
+                      className="w-5 h-5 text-cyan-600 border-gray-300 rounded focus:ring-cyan-500"
+                    />
+                    <label className="text-sm font-medium text-gray-700 flex-1 cursor-pointer">
+                      {member.name}
+                    </label>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Content Input Section */}
+          <div className="rounded-lg shadow-sm border border-gray-200 p-6 mb-6" style={{ backgroundColor: '#6698CC' }}>
+            <h2 className="text-xl font-semibold text-white mb-6">Meeting Content</h2>
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-white mb-2">
+                Enter meeting information, notes, or any content to be processed
+              </label>
+              <textarea
+                value={meetingContent}
+                onChange={(e) => setMeetingContent(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-cyan-500 focus:border-cyan-500 text-black bg-white placeholder-gray-500"
+                placeholder="Paste meeting notes, agenda items, discussion points, or any relevant information here..."
+                rows={8}
+              />
+              <p className="mt-2 text-sm text-white opacity-90">
+                This content will be processed by AI to extract structured meeting information and generate formatted minutes.
               </p>
             </div>
           </div>
@@ -283,7 +372,7 @@ export default function MinutesPage() {
           <div className="flex justify-end space-x-4">
             <button
               onClick={handlePreview}
-              disabled={!selectedFile || isPreviewing}
+              disabled={!meetingContent || !meetingContent.trim() || isPreviewing}
               className="inline-flex items-center px-6 py-3 text-white text-sm font-medium rounded-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ backgroundColor: '#F08C21' }}
             >
@@ -292,7 +381,7 @@ export default function MinutesPage() {
             </button>
             <button
               onClick={handleGenerate}
-              disabled={isGenerating || !selectedFile}
+              disabled={isGenerating || !meetingContent || !meetingContent.trim()}
               className="inline-flex items-center px-6 py-3 bg-cyan-600 text-white text-sm font-medium rounded-md hover:bg-cyan-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
               <ArrowDownTrayIcon className="h-4 w-4 mr-2" />

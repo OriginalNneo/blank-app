@@ -159,3 +159,11 @@ def get_google_service_account_file() -> str:
     """Get Google service account file path"""
     filename = get_config("apis.google_sheets.service_account_file", "tgyn-admin-1452dbad90f6.json")
     return os.path.join("/Users/nathanielneo/Desktop/TGYN_Admin", filename)
+
+def get_members_sheets_url() -> str:
+    """Get Google Sheets URL for members"""
+    return get_config("apis.google_sheets.members", "")
+
+def get_attendance_sheets_url() -> str:
+    """Get Google Sheets URL for attendance"""
+    return get_config("apis.google_sheets.attendance", "")

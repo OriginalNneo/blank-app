@@ -106,13 +106,16 @@ class ReceiptService:
 
             Rules:
             1. Categorize each item as either INCOME or EXPENDITURE based on context
-            2. Use clear, descriptive names
-            3. Quantity must be a number (default to 1 if not shown)
-            4. Amounts must be numbers without currency symbols
-            5. Most receipts are EXPENDITURE (purchases), but some might be INCOME (collections)
-            6. Always include tax_amount if visible on the receipt (GST, service tax, etc.)
-            7. If tax is included in item prices, still extract it separately if shown
-            8. Return ONLY the JSON, no other text
+            2. Use clear, descriptive names for PRODUCTS, SERVICES, or TRANSACTIONS only
+            3. DO NOT extract personal names (e.g., "Shannon Yap", "Cynthia", "John Doe") as items - these are people, not items
+            4. DO NOT extract customer names, staff names, or any person names as item descriptions
+            5. Only extract actual products, services, or transaction types (e.g., "Chicken Rice", "Venue Rental", "Registration Fee")
+            6. Quantity must be a number (default to 1 if not shown)
+            7. Amounts must be numbers without currency symbols
+            8. Most receipts are EXPENDITURE (purchases), but some might be INCOME (collections)
+            9. Always include tax_amount if visible on the receipt (GST, service tax, etc.)
+            10. If tax is included in item prices, still extract it separately if shown
+            11. Return ONLY the JSON, no other text
             """
 
             # Process the image
@@ -154,43 +157,91 @@ class ReceiptService:
             return None
 
     def extract_items_from_receipts(self, processed_receipts: List[ProcessedReceipt]) -> Dict[str, List[Dict[str, Any]]]:
-        """Extract and combine items from multiple processed receipts"""
+        """Extract and combine items from multiple processed receipts with deduplication"""
         income_items = []
         expenditure_items = []
+        seen_income = set()  # Track seen income items by description
+        seen_expenditure = set()  # Track seen expenditure items by description
+
+        # Common patterns that indicate a name rather than an item
+        def is_likely_name(description: str) -> bool:
+            """Check if description is likely a person's name"""
+            desc_lower = description.strip().lower()
+            # Single word that looks like a name (capitalized, 2-20 chars)
+            if len(desc_lower.split()) <= 2 and desc_lower.replace(' ', '').isalpha():
+                # Check if it's a common name pattern (not a product/service)
+                common_products = ['tax', 'gst', 'service', 'fee', 'rental', 'food', 'beverage', 
+                                 'equipment', 'material', 'printing', 'marketing', 'transport',
+                                 'logistics', 'registration', 'donation', 'sponsorship', 'ticket',
+                                 'merchandise', 'sale', 'purchase']
+                if desc_lower not in common_products:
+                    return True
+            return False
 
         for receipt in processed_receipts:
             # Handle income items
             for item in receipt.income_items:
-                standardized_item = {
-                    "Description": item.get("description", "Unknown Income Item"),
-                    "Qty": item.get("quantity", 1),
-                    "Actual ($)": item.get("total_amount", 0.0),
-                    "Budgeted ($)": 0.0,
-                    "Category": item.get("category", "misc_income")
-                }
-                income_items.append(standardized_item)
+                description = item.get("description", "Unknown Income Item").strip()
+                
+                # Skip if it looks like a name
+                if is_likely_name(description):
+                    print(f"Skipping likely name in income items: {description}")
+                    continue
+                
+                # Create unique key for deduplication (description + amount)
+                unique_key = f"{description.lower()}_{item.get('total_amount', 0.0)}"
+                
+                # Only add if not already seen
+                if unique_key not in seen_income:
+                    seen_income.add(unique_key)
+                    standardized_item = {
+                        "Description": description,
+                        "Qty": item.get("quantity", 1),
+                        "Actual ($)": item.get("total_amount", 0.0),
+                        "Budgeted ($)": 0.0,
+                        "Category": item.get("category", "misc_income")
+                    }
+                    income_items.append(standardized_item)
 
             # Handle expenditure items
             for item in receipt.expenditure_items:
-                standardized_item = {
-                    "Description": item.get("description", "Unknown Expense Item"),
-                    "Qty": item.get("quantity", 1),
-                    "Actual ($)": item.get("total_amount", 0.0),
-                    "Budgeted ($)": 0.0,
-                    "Category": item.get("category", "misc_expense")
-                }
-                expenditure_items.append(standardized_item)
+                description = item.get("description", "Unknown Expense Item").strip()
+                
+                # Skip if it looks like a name
+                if is_likely_name(description):
+                    print(f"Skipping likely name in expenditure items: {description}")
+                    continue
+                
+                # Create unique key for deduplication (description + amount)
+                unique_key = f"{description.lower()}_{item.get('total_amount', 0.0)}"
+                
+                # Only add if not already seen
+                if unique_key not in seen_expenditure:
+                    seen_expenditure.add(unique_key)
+                    standardized_item = {
+                        "Description": description,
+                        "Qty": item.get("quantity", 1),
+                        "Actual ($)": item.get("total_amount", 0.0),
+                        "Budgeted ($)": 0.0,
+                        "Category": item.get("category", "misc_expense")
+                    }
+                    expenditure_items.append(standardized_item)
 
-            # Add tax amount as separate expenditure item
+            # Add tax amount as separate expenditure item (with deduplication)
             if receipt.tax_amount and receipt.tax_amount > 0:
-                tax_item = {
-                    "Description": f"Tax - {receipt.merchant_name}",
-                    "Qty": 1,
-                    "Actual ($)": receipt.tax_amount,
-                    "Budgeted ($)": 0.0,
-                    "Category": "tax"
-                }
-                expenditure_items.append(tax_item)
+                tax_description = f"Tax - {receipt.merchant_name}"
+                tax_key = f"{tax_description.lower()}_{receipt.tax_amount}"
+                
+                if tax_key not in seen_expenditure:
+                    seen_expenditure.add(tax_key)
+                    tax_item = {
+                        "Description": tax_description,
+                        "Qty": 1,
+                        "Actual ($)": receipt.tax_amount,
+                        "Budgeted ($)": 0.0,
+                        "Category": "tax"
+                    }
+                    expenditure_items.append(tax_item)
 
         return {
             "income": income_items,

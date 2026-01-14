@@ -144,24 +144,60 @@ export default function SOAPage() {
       const results = await soaService.processReceipts(uploadedFiles);
       setReceiptResults(results);
 
-      // Add processed items to tables
+      // Add processed items to tables with deduplication
       if (results.income_items && results.income_items.length > 0) {
-        const newIncomeItems = results.income_items.map((item: any) => ({
-          Description: item.Description,
-          "Actual ($)": item["Actual ($)"],
-          "Budgeted ($)": item["Budgeted ($)"],
-          "Variance ($)": calculateVariance(item["Actual ($)"], item["Budgeted ($)"])
-        }));
+        const existingDescriptions = new Set(
+          incomeItems.map(item => `${item.Description.toLowerCase()}_${item["Actual ($)"]}`)
+        );
+        
+        const newIncomeItems = results.income_items
+          .map((item: any) => ({
+            Description: item.Description || item.description || "Unknown Income Item",
+            "Actual ($)": item["Actual ($)"] || item.actual_amount || 0,
+            "Budgeted ($)": item["Budgeted ($)"] || item.budgeted_amount || 0,
+            "Variance ($)": calculateVariance(
+              item["Actual ($)"] || item.actual_amount || 0,
+              item["Budgeted ($)"] || item.budgeted_amount || 0
+            )
+          }))
+          .filter((item: any) => {
+            const key = `${item.Description.toLowerCase()}_${item["Actual ($)"]}`;
+            if (existingDescriptions.has(key)) {
+              console.log(`Skipping duplicate income item: ${item.Description}`);
+              return false;
+            }
+            existingDescriptions.add(key);
+            return true;
+          });
+        
         setIncomeItems([...incomeItems, ...newIncomeItems]);
       }
 
       if (results.expenditure_items && results.expenditure_items.length > 0) {
-        const newExpenseItems = results.expenditure_items.map((item: any) => ({
-          Description: item.Description,
-          "Actual ($)": item["Actual ($)"],
-          "Budgeted ($)": item["Budgeted ($)"],
-          "Variance ($)": calculateVariance(item["Actual ($)"], item["Budgeted ($)"])
-        }));
+        const existingDescriptions = new Set(
+          expenseItems.map(item => `${item.Description.toLowerCase()}_${item["Actual ($)"]}`)
+        );
+        
+        const newExpenseItems = results.expenditure_items
+          .map((item: any) => ({
+            Description: item.Description || item.description || "Unknown Expense Item",
+            "Actual ($)": item["Actual ($)"] || item.actual_amount || 0,
+            "Budgeted ($)": item["Budgeted ($)"] || item.budgeted_amount || 0,
+            "Variance ($)": calculateVariance(
+              item["Actual ($)"] || item.actual_amount || 0,
+              item["Budgeted ($)"] || item.budgeted_amount || 0
+            )
+          }))
+          .filter((item: any) => {
+            const key = `${item.Description.toLowerCase()}_${item["Actual ($)"]}`;
+            if (existingDescriptions.has(key)) {
+              console.log(`Skipping duplicate expense item: ${item.Description}`);
+              return false;
+            }
+            existingDescriptions.add(key);
+            return true;
+          });
+        
         setExpenseItems([...expenseItems, ...newExpenseItems]);
       }
 
