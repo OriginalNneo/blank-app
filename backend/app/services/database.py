@@ -10,6 +10,8 @@ class GoogleSheetsDB:
     def __init__(self):
         self.gc = None
         self.spreadsheet = None
+        self.initialized = False
+        self.error_message = None
         self._initialize_connection()
 
     def _initialize_connection(self):
@@ -18,19 +20,25 @@ class GoogleSheetsDB:
             # Get path to the Google service account JSON file
             # Try multiple possible locations
             possible_paths = [
-                "/Users/nathanielneo/Desktop/TGYN_Admin/tgyn-admin-1452dbad90f6.json",  # Absolute path
+                "/Users/nathanielneo/Desktop/Projects/TGYN_Admin/tgyn-admin-1452dbad90f6.json",  # Absolute path (updated)
+                "/Users/nathanielneo/Desktop/TGYN_Admin/tgyn-admin-1452dbad90f6.json",  # Legacy path
                 "./tgyn-admin-1452dbad90f6.json",  # Relative to current directory
                 "../tgyn-admin-1452dbad90f6.json",  # Relative to backend directory
+                "../../tgyn-admin-1452dbad90f6.json",  # From backend/app/services
             ]
 
             creds_file_path = None
             for path in possible_paths:
                 if os.path.exists(path):
                     creds_file_path = path
+                    print(f"Found Google service account file at: {path}")
                     break
 
             if not creds_file_path:
-                raise FileNotFoundError("Google service account JSON file not found")
+                error_msg = f"Google service account JSON file not found. Searched in: {', '.join(possible_paths)}"
+                print(f"ERROR: {error_msg}")
+                self.error_message = error_msg
+                return
 
             # Load credentials from JSON file
             with open(creds_file_path, 'r') as f:
@@ -45,20 +53,32 @@ class GoogleSheetsDB:
             )
 
             self.gc = gspread.authorize(creds)
+            print("Google Sheets client authorized successfully")
 
             # Get spreadsheet URL from configuration
             spreadsheet_url = get_google_sheets_url()
             if not spreadsheet_url:
-                raise ValueError("Google Sheets URL not configured")
+                error_msg = "Google Sheets URL not configured. Please set it in config.json or GOOGLE_SPREADSHEET_URL environment variable."
+                print(f"ERROR: {error_msg}")
+                self.error_message = error_msg
+                return
 
             self.spreadsheet = self.gc.open_by_url(spreadsheet_url)
+            self.initialized = True
+            print(f"Google Sheets connection established successfully. Spreadsheet: {self.spreadsheet.title}")
 
         except Exception as e:
-            print(f"Failed to initialize Google Sheets connection: {e}")
-            raise
+            error_msg = f"Failed to initialize Google Sheets connection: {e}"
+            print(f"ERROR: {error_msg}")
+            self.error_message = error_msg
+            import traceback
+            traceback.print_exc()
 
     def get_users_df(self) -> pd.DataFrame:
         """Get users data from Google Sheets"""
+        if not self.initialized:
+            print("Warning: Cannot get users data - Google Sheets not initialized")
+            return pd.DataFrame()
         try:
             worksheet = self.spreadsheet.worksheet("Users")
             data = worksheet.get_all_records()
@@ -114,6 +134,18 @@ async def init_db():
     """Initialize database connection"""
     global db
     try:
+        if not db.initialized:
+            print("=" * 60)
+            print("WARNING: Google Sheets connection not initialized!")
+            if db.error_message:
+                print(f"Error: {db.error_message}")
+            print("\nTo fix this, ensure you have:")
+            print("1. Google service account JSON file: tgyn-admin-1452dbad90f6.json")
+            print("2. config.json with 'apis.google_sheets.spreadsheet_url' configured")
+            print("   OR set GOOGLE_SPREADSHEET_URL environment variable")
+            print("=" * 60)
+            return
+
         # Test connection by getting users
         users_df = db.get_users_df()
         print(f"Database initialized. Found {len(users_df)} users.")
@@ -123,10 +155,13 @@ async def init_db():
         db.create_worksheet_if_not_exists("Events", ["id", "name", "date", "type", "created_by", "created_at"])
         db.create_worksheet_if_not_exists("Budgets", ["event_id", "income_data", "expense_data", "created_at"])
         db.create_worksheet_if_not_exists("SOAs", ["event_id", "income_data", "expense_data", "receipts", "created_at"])
+        print("Required worksheets verified/created successfully.")
 
     except Exception as e:
         print(f"Failed to initialize database: {e}")
-        raise
+        import traceback
+        traceback.print_exc()
+        # Don't raise - allow server to start even if DB init fails
 
 def get_db() -> GoogleSheetsDB:
     """Dependency to get database instance"""

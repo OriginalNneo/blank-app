@@ -13,9 +13,11 @@ class ConfigManager:
     def _load_config(self):
         """Load configuration from config.json file"""
         config_paths = [
-            "/Users/nathanielneo/Desktop/TGYN_Admin/config.json",  # Absolute path
+            "/Users/nathanielneo/Desktop/Projects/TGYN_Admin/config.json",  # Absolute path (updated)
+            "/Users/nathanielneo/Desktop/TGYN_Admin/config.json",  # Legacy path
             "./config.json",  # Relative to current directory
             "../config.json",  # Relative to backend directory
+            "../../config.json",  # From backend/app/utils
         ]
 
         for path in config_paths:
@@ -43,11 +45,17 @@ class ConfigManager:
         config = {"apis": {}, "theme": {}, "app": {}}
 
         # Load Google service account
-        try:
-            with open("/Users/nathanielneo/Desktop/TGYN_Admin/tgyn-admin-1452dbad90f6.json", 'r') as f:
-                config["apis"]["google_sheets"] = {"service_account_file": "tgyn-admin-1452dbad90f6.json"}
-        except:
-            pass
+        service_account_paths = [
+            "/Users/nathanielneo/Desktop/Projects/TGYN_Admin/tgyn-admin-1452dbad90f6.json",
+            "/Users/nathanielneo/Desktop/TGYN_Admin/tgyn-admin-1452dbad90f6.json",
+        ]
+        for path in service_account_paths:
+            try:
+                if os.path.exists(path):
+                    config["apis"]["google_sheets"] = {"service_account_file": "tgyn-admin-1452dbad90f6.json"}
+                    break
+            except:
+                pass
 
         # Load Telegram config
         try:
@@ -158,7 +166,18 @@ def get_google_sheets_url() -> str:
 def get_google_service_account_file() -> str:
     """Get Google service account file path"""
     filename = get_config("apis.google_sheets.service_account_file", "tgyn-admin-1452dbad90f6.json")
-    return os.path.join("/Users/nathanielneo/Desktop/TGYN_Admin", filename)
+    # Try multiple possible locations
+    possible_paths = [
+        os.path.join("/Users/nathanielneo/Desktop/Projects/TGYN_Admin", filename),
+        os.path.join("/Users/nathanielneo/Desktop/TGYN_Admin", filename),
+        filename,  # Current directory
+        os.path.join("..", filename),  # Parent directory
+    ]
+    for path in possible_paths:
+        if os.path.exists(path):
+            return path
+    # Return the first path as default (will be checked by caller)
+    return possible_paths[0]
 
 def get_members_sheets_url() -> str:
     """Get Google Sheets URL for members"""

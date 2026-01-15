@@ -45,7 +45,11 @@ export default function MinutesPage() {
   }, [user, isLoading, router]);
 
   useEffect(() => {
-    // Load members when component mounts
+    // Load members only when user is authenticated
+    if (!user || isLoading) {
+      return;
+    }
+
     const loadMembers = async () => {
       setIsLoadingMembers(true);
       try {
@@ -59,18 +63,22 @@ export default function MinutesPage() {
           });
           setAttendance(initialAttendance);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error loading members:', error);
-        alert('Failed to load members. Please try again.');
+        const errorMessage = error.response?.data?.detail || error.message || 'Failed to load members. Please try again.';
+        console.error('Error details:', {
+          message: error.message,
+          response: error.response?.data,
+          status: error.response?.status,
+        });
+        alert(`Failed to load members: ${errorMessage}`);
       } finally {
         setIsLoadingMembers(false);
       }
     };
 
-    if (user) {
-      loadMembers();
-    }
-  }, [user]);
+    loadMembers();
+  }, [user, isLoading]);
 
   const handlePreview = async () => {
     if (!meetingContent || !meetingContent.trim()) {
